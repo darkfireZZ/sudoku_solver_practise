@@ -126,6 +126,9 @@ impl Sudoku {
         self.grid[x + y * 9]
     }
 
+    /// Set the value at the given coordinates in the Sudoku grid.
+    ///
+    /// Pancis if the coordinates are out of bounds or if `value` is invalid.
     pub fn set_value(&mut self, x: usize, y: usize, value: u32) {
         validate_coordinates(x, y);
         validate_value(value);
@@ -134,9 +137,11 @@ impl Sudoku {
     }
 }
 
-const ALL_VALUES_POSSIBLE: u32 = 0b111_111_111;
-//const NO_VALUES_POSSIBLE: u16 = 0b000_000_000;
-
+/// Remember all values that may still be possible for a specific square.
+///
+/// This is used by the solver, for an explanation, see //TODO
+///
+/// See also [NotesGrid].
 #[derive(Clone, Copy)]
 struct SudokuNote {
     notes_flags: u32,
@@ -145,17 +150,33 @@ struct SudokuNote {
 
 impl SudokuNote {
 
+    /// The state of the `notes_flags` of [SudokuNote] attribute where all values
+    /// are still possible.
+    const ALL_VALUES_POSSIBLE: u32 = 0b111_111_111;
+
+    /// Initialize a new SudokuNote. It will assume that all values are still
+    /// possible in the square it represents.
     fn new_with_all_values_possible() -> SudokuNote {
         SudokuNote {
-            notes_flags: ALL_VALUES_POSSIBLE,
+            notes_flags: SudokuNote::ALL_VALUES_POSSIBLE,
             num_values_possible: 9,
         }
     }
 
+    /// Check if a certain value can still possibly be placed in the square
+    /// corresponding to this [SudokuNote].
+    ///
+    /// Do not use values for `value` > 9. In that case, the behaviour of this
+    /// function is not defined and may produce all sorts of weird results.
     fn is_value_possible(&self, value: u32) -> bool {
         (self.notes_flags >> (value - 1)) & 1 != 0
     }
 
+    /// Set if a certain value can still possibly be placed in the square
+    /// corresponding to this [SudokuNote].
+    ///
+    /// Do not use values for `value` > 9. In that case, the behaviour of this
+    /// function is not defined and may produce all sorts of weird results.
     fn make_note(&mut self, value: u32, is_possible: bool) {
         let notes_flags_old = self.notes_flags;
 
@@ -173,15 +194,22 @@ impl SudokuNote {
         }
     }
 
+    /// Get how many values can still possibly be placed in the square
+    /// corresponding to this [SudokuNote].
     fn num_values_possible(&self) -> u32 {
         self.num_values_possible
     }
 
+    /// Get an [Iterator] of all the values that can still possibly be placed
+    /// in the square corresponding to this [SudokuNote].
+    ///
+    /// The iterator returns the values in ascending order.
     fn possible_values(&self) -> SudokuNoteIter {
         SudokuNoteIter::new(&self)
     }
 }
 
+/// The [Iterator] returned by [SudokuNote::possible_values()].
 struct SudokuNoteIter<'a> {
     position: u32,
     note: &'a SudokuNote,
@@ -200,8 +228,16 @@ impl Iterator for SudokuNoteIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
+        
+        // A plaintext explanation of what this implementation does:
+        //
+        // `position` is the "pointer" of the iterator. It points to some
+        // possible value for the SudokuNote. On the next iteration it is moved
+        // until a value is found that is possible or until the highest
+        // possible value (`9`) is reached.
+
         self.position += 1;
-        while !self.note.is_value_possible(self.position) && self.position <= 9{
+        while !self.note.is_value_possible(self.position) && self.position <= 9 {
             self.position += 1;
         }
 
@@ -213,27 +249,57 @@ impl Iterator for SudokuNoteIter<'_> {
     }
 }
 
+/// A collection of [SudokuNote]s that resembles the grid of a [Sudoku].
+///
+/// This makes it very simple to associate a [Sudoku] square with a
+/// corresponding [SudokuNote] as both can be uniquely identified by a pair of
+/// x and y coordinates.
+///
+/// See [Sudoku] for a more in-depth explanation of the coordinate system.
 struct NotesGrid {
     grid: [SudokuNote; NUM_SQUARES],
 }
 
 impl NotesGrid {
     
+    /// Initialize a new [NotesGrid].
+    ///
+    /// Set all [SudokuNote]s to a state where all values are still possible.
     fn new() -> NotesGrid {
         NotesGrid {
             grid: [SudokuNote::new_with_all_values_possible(); NUM_SQUARES],
         }
     }
 
+    /// Borrow the [SudokuNote] for the square at position (`x` / `y`).
+    ///
+    /// Do not use invalid coordinates. Doing so will yield undesirable
+    /// results.
     fn get_note(&self, x: usize, y: usize) -> &SudokuNote {
         &self.grid[x + y * 9]
     }
 
+    /// Get a mutable borrow of the [SudokuNote] for the square at position
+    /// (`x` / `y`).
+    ///
+    /// Do not use invalid coordinates. Doing so will yield undesirable
+    /// results.
     fn get_note_mut(&mut self, x: usize, y: usize) -> &mut SudokuNote {
         &mut self.grid[x + y * 9]
     }
 }
 
+/// Check every square in the given [Sudoku] grid and remove all impossible
+/// values from the given [NotesGrid].
+///
+/// Or a bit more precise:
+/// Check every empty square in the [Sudoku] grid and note in its corresponding
+/// [SudokuNote] in the given [NotesGrid] that all values in the vertical line,
+/// the horizontal line and the surrounding 9x9 cell of the square can not
+/// possibly be placed in that square.
+///
+/// What happens with the notes for squares that already contain a value is not
+/// defined and may change in future versions.
 fn make_all_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
     for x in 0..9 {
         for y in 0..9 {
@@ -247,6 +313,9 @@ fn make_all_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
     }
 }
 
+/// Make the notes for a square based on its vertical line.
+///
+/// See [make_all_notes()] for a more in-depth explanation.
 fn make_vertical_notes(note: &mut SudokuNote, x: usize, sudoku: &Sudoku) {
     for y in 0..9 {
         let value_of_square = sudoku.get_value(x, y);
@@ -256,6 +325,9 @@ fn make_vertical_notes(note: &mut SudokuNote, x: usize, sudoku: &Sudoku) {
     }
 }
 
+/// Make the notes for a square based on its horizontal line.
+///
+/// See [make_all_notes()] for a more in-depth explanation.
 fn make_horizontal_notes(note: &mut SudokuNote, y: usize, sudoku: &Sudoku) {
     for x in 0..9 {
         let value_of_square = sudoku.get_value(x, y);
@@ -265,6 +337,9 @@ fn make_horizontal_notes(note: &mut SudokuNote, y: usize, sudoku: &Sudoku) {
     }
 }
 
+/// Make the notes for a square based on its surrounding 9x9 cell.
+///
+/// See [make_all_notes()] for a more in-depth explanation.
 fn make_in_cell_notes(note: &mut SudokuNote, x: usize, y: usize, sudoku: &Sudoku) {
     // determine the upper left square of the 9x9 cell the x and y are located
     // in
@@ -287,8 +362,12 @@ fn make_in_cell_notes(note: &mut SudokuNote, x: usize, y: usize, sudoku: &Sudoku
     }
 }
 
+/// Replace all the empty squares in the [Sudoku] where only a single value is
+/// possible based on the provided [NotesGrid] with that value.
+///
+/// Return the number of values newly written to the [Sudoku].
 fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
-    let mut num_notes_replaced = 0;
+    let mut num_new_values = 0;
 
     for x in 0..9 {
         for y in 0..9 {
@@ -299,12 +378,12 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
                 let certain_value = current_note.possible_values().next().unwrap();
                 sudoku.set_value(x, y, certain_value);
 
-                num_notes_replaced += 1;
+                num_new_values += 1;
             }
         }
     }
 
-    num_notes_replaced
+    num_new_values
 }
 
 pub fn try_solve_sudoku(sudoku_grid: &mut Sudoku) {
@@ -326,6 +405,8 @@ mod tests {
 
     use crate::NUM_SQUARES;
 
+    /// A very simple Sudoku puzzle.
+    ///
     /// Generated with https://sudokukingdom.com/very-easy-sudoku.php (accessed 15.08.2022)
     const EXTREMELY_SIMPLE_SUDOKU: [u32; NUM_SQUARES] = [7, 0, 6, 0, 5, 0, 4, 1, 9,
                                                          0, 0, 9, 0, 7, 4, 8, 0, 0,
@@ -337,6 +418,7 @@ mod tests {
                                                          5, 3, 0, 1, 4, 0, 0, 2, 0,
                                                          0, 6, 1, 5, 9, 0, 3, 0, 0];
 
+    /// The solved state of [EXTREMELY_SIMPLE_SUDOKU].
     const EXTREMELY_SIMPLE_SUDOKU_SOLUTION: [u32; NUM_SQUARES] = [7, 2, 6, 8, 5, 3, 4, 1, 9,
                                                                   1, 5, 9, 2, 7, 4, 8, 6, 3,
                                                                   4, 8, 3, 6, 1, 9, 2, 7, 5,
@@ -409,8 +491,9 @@ mod tests {
     }
 
     #[test]
-    fn new_from_array() {
+    fn new_from_array_sample_test() {
         let grid = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
+
         assert_eq!(grid.get_value(0, 0), 7);
         assert_eq!(grid.get_value(2, 3), 8);
         assert_eq!(grid.get_value(1, 0), 0);
@@ -431,13 +514,12 @@ mod tests {
                                 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-
     }
 
     // SudokuNote methods
 
     #[test]
-    fn new_with_all_values_possible_and_is_value_possible() {
+    fn new_with_all_values_possible_is_value_possible() {
         let notes = SudokuNote::new_with_all_values_possible();
 
         for value in 1..=9 {
@@ -446,14 +528,14 @@ mod tests {
     }
 
     #[test]
-    fn new_with_all_values_possible_and_num_values_possible() {
+    fn new_with_all_values_possible_num_values_possible() {
         let notes = SudokuNote::new_with_all_values_possible();
 
         assert_eq!(notes.num_values_possible(), 9);
     }
 
     #[test]
-    fn make_note_and_is_value_possible_note() {
+    fn make_note_is_value_possible_note() {
         let mut notes = SudokuNote::new_with_all_values_possible();
 
         notes.make_note(5, false);
@@ -462,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn make_note_and_num_values_possible_changes() {
+    fn make_note_num_values_possible_changes() {
         let mut notes = SudokuNote::new_with_all_values_possible();
 
         notes.make_note(2, false);
@@ -487,6 +569,7 @@ mod tests {
         notes.make_note(9, false);
         notes.make_note(2, false);
 
+        // the values as well as their order must be the same
         let expected = vec![1, 3, 5, 6, 7, 8];
         let actual: Vec<u32> = notes.possible_values().collect();
 
@@ -496,7 +579,7 @@ mod tests {
     // NotesGrid methods
 
     #[test]
-    fn new_has_all_values_possible() {
+    fn new_all_values_possible() {
         let grid = NotesGrid::new();
         for x in 0..9 {
             for y in 0..9 {
@@ -509,8 +592,12 @@ mod tests {
 
     // crate-level functions
 
+    /// After calling `make_all_notes()`, all the squares that are empty
+    /// must allow for at least 1 possible value (if the provided Sudoku
+    /// puzzle is solvable).
     #[test]
-    fn make_all_notes_value_must_be_possible_if_square_not_filled() {
+    fn make_all_notes_value_possible_if_square_not_filled() {
+
         let sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
         let mut notes = NotesGrid::new();
         crate::make_all_notes(&mut notes, &sudoku);
@@ -586,6 +673,10 @@ mod tests {
         assert_eq!(sudoku.get_value(0, 6), 2);
     }
 
+    /// This is an unlikely edge case, but I felt like writing it anyways. It
+    /// protects against possible changes in
+    /// [sudoku::replace_notes_with_values()] that would overwrite existing
+    /// values.
     #[test]
     fn replace_notes_with_values_will_not_replace_existing_values() {
         let mut sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
@@ -613,4 +704,5 @@ mod tests {
 
         assert_eq!(found_solution, expected_solution);
     }
+
 }
