@@ -39,15 +39,6 @@ pub struct Sudoku {
 
 impl Sudoku {
 
-    /// Initialize a new empty Sudoku board.
-    ///
-    /// "Empty board" means that all squares contain a value of 0.
-    pub fn new_empty() -> Sudoku {
-        Sudoku {
-            grid: [0; NUM_SQUARES],
-        }
-    }
-
     /// Initialize a new Sudoku board from an array.
     ///
     /// This function allows you to do this:
@@ -94,6 +85,33 @@ impl Sudoku {
 
         Sudoku {
             grid: array,
+        }
+    }
+
+    /// Initialize a new empty Sudoku board.
+    ///
+    /// "Empty board" means that all squares contain a value of 0.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// let sudoku_0 = Sudoku::new_empty();
+    ///
+    /// let sudoku_1 = Sudoku::new_from_array([0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    ///
+    /// assert_eq!(sudoku0, sudoku1);
+    /// ```
+    pub fn new_empty() -> Sudoku {
+        Sudoku {
+            grid: [0; NUM_SQUARES],
         }
     }
 
@@ -156,10 +174,38 @@ impl Sudoku {
     /// ```
     ///
     /// A Sudoku grid is considered solved if it has no empty squares and
-    /// contains no duplicate values within any vertical line, horizontal line
-    /// or any of the 9 3x3 cells.
+    /// contains no duplicate values within any row, column or any of the 9 3x3
+    /// cells.
     pub fn is_solved(&self) -> bool {
-        !self.has_empty_squares() &&
+        !self.has_empty_squares() && self.is_valid()
+    }
+
+    /// Check if this [Sudoku] is valid.
+    ///
+    /// A [Sudoku] is considered valid if it contains no duplicate values
+    /// within any row, column or any of the 9 3x3 cells.
+    ///
+    /// IMPORTANT: Valid does not imply solvable, a [Sudoku] may well be valid
+    /// but unsolvable. To check for solvability see // TODO
+    ///
+    /// Example of a valid [Sudoku]:
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// // Values generated with http://www.opensky.ca/sudoku
+    /// let valid_sudoku = Sudoku::new_from_array([0, 6, 0, 0, 0, 0, 0, 0, 0,
+    ///                                            9, 0, 0, 3, 6, 8, 4, 0, 0,
+    ///                                            7, 0, 0, 0, 1, 0, 9, 0, 0,
+    ///                                            1, 0, 0, 0, 0, 9, 5, 0, 8,
+    ///                                            0, 3, 6, 0, 0, 0, 7, 9, 0,
+    ///                                            8, 0, 9, 7, 0, 0, 0, 0, 2,
+    ///                                            0, 0, 4, 0, 9, 0, 0, 0, 5,
+    ///                                            0, 0, 1, 2, 5, 6, 0, 0, 9,
+    ///                                            0, 0, 0, 0, 0, 0, 0, 1, 0]);
+    ///
+    /// assert!(valid_sudoku.is_valid());
+    /// ```
+    pub fn is_valid(&self) -> bool {
         self.fulfills_horizontal_condition() &&
         self.fulfills_vertical_condition() &&
         self.fulfills_in_3x3_cell_condition()
@@ -212,6 +258,59 @@ impl Sudoku {
         }
 
         false
+    }
+
+    /// Get the number of empty squares on this [Sudoku] grid.
+    ///
+    /// This does the same as calling [Sudoku::num_occurrences_of()] with an argument of
+    /// `0`.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// # // TODO check if this is solvable
+    /// // Values generated with http://www.opensky.ca/sudoku
+    /// let sudoku = Sudoku::new_from_array([4, 3, 0, 0, 0, 9, 8, 0, 0,
+    ///                                      1, 9, 0, 8, 0, 0, 0, 0, 5,
+    ///                                      0, 0, 0, 7, 2, 4, 0, 0, 0,
+    ///                                      0, 6, 1, 0, 9, 0, 0, 2, 0,
+    ///                                      0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                      0, 2, 0, 0, 5, 0, 6, 9, 0,
+    ///                                      0, 0, 0, 6, 3, 7, 0, 0, 0,
+    ///                                      8, 0, 0, 0, 0, 5, 0, 3, 1,
+    ///                                      0, 0, 5, 1, 0, 0, 0, 7, 6]);
+    ///
+    /// assert_eq!(sudoku.num_empty_squares(), 51);
+    /// ```
+    pub fn num_empty_squares(&self) -> usize {
+        self.num_occurrences_of(0)
+    }
+ 
+    /// Get the number of squares on this [Sudoku] grid that contain a certain
+    /// value.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// # // TODO check if this is solvable
+    /// // Values generated with http://www.opensky.ca/sudoku
+    /// let sudoku = Sudoku::new_from_array([4, 3, 0, 0, 0, 9, 8, 0, 0,
+    ///                                      1, 9, 0, 8, 0, 0, 0, 0, 5,
+    ///                                      0, 0, 0, 7, 2, 4, 0, 0, 0,
+    ///                                      0, 6, 1, 0, 9, 0, 0, 2, 0,
+    ///                                      0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ///                                      0, 2, 0, 0, 5, 0, 6, 9, 0,
+    ///                                      0, 0, 0, 6, 3, 7, 0, 0, 0,
+    ///                                      8, 0, 0, 0, 0, 5, 0, 3, 1,
+    ///                                      0, 0, 5, 1, 0, 0, 0, 7, 6]);
+    ///
+    /// assert_eq!(sudoku.num_occurrences_of(3), 3);
+    /// assert_eq!(sudoku.num_occurrences_of(7), 3);
+    /// ```
+    pub fn num_occurrences_of(&self, value: u32) -> usize {
+        validate_value(value);
+
+        self.grid.iter().filter(|&item| *item == value).count()
     }
 
     // There is some repeated code in the following three functions
@@ -595,9 +694,10 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
         for y in 0..9 {
             let current_note = notes.get_note(x, y);
             if current_note.num_values_possible() == 1 && sudoku.get_value(x, y) == 0 {
-                // Since there is only 1 possible value, we can take the first
-                // iterator value
-                let certain_value = current_note.possible_values().next().unwrap();
+                let certain_value = current_note
+                    .possible_values()
+                    .next()
+                    .expect("There is always exactly 1 value in this iterator");
                 sudoku.set_value(x, y, certain_value);
 
                 num_new_values += 1;
@@ -639,29 +739,133 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
 /// }
 /// ```
 pub fn find_solution(mut sudoku_grid: Sudoku) -> Option<Sudoku> {
+    find_all_solutions(sudoku_grid).next()
+}
 
-    // if the given grid is not a valid Sudoku return None
-    if !sudoku_grid.fulfills_horizontal_condition()
-         || !sudoku_grid.fulfills_vertical_condition()
-         || !sudoku_grid.fulfills_in_3x3_cell_condition() {
-        return None;
+//TODO document
+pub fn find_all_solutions(sudoku_grid: Sudoku) -> impl Iterator<Item = Sudoku> {
+    AllSolutionsIterator::new(sudoku_grid)
+}
+
+//TODO document
+struct AllSolutionsIterator {
+    solvable_sudoku_grid: Option<Sudoku>,
+    changes_stack: Vec<ValueChange>,
+}
+
+impl AllSolutionsIterator {
+    fn new(sudoku_grid: Sudoku) -> AllSolutionsIterator {
+
+        let solvable_sudoku_grid = if sudoku_grid.is_valid() {
+            // TODO finish impl
+            //while num_changes != 0 {
+                //make_all_notes(&mut notes
+            //}
+            unimplemented!();
+            Some(sudoku_grid)
+        } else {
+            None
+        };
+
+        // TODO this might be 1 too much, have a look at this again after impl
+        let num_empty_squares = sudoku_grid.num_empty_squares();
+
+        AllSolutionsIterator {
+            solvable_sudoku_grid,
+            changes_stack: Vec::with_capacity(num_empty_squares),
+        }
     }
+}
 
-    let mut notes = NotesGrid::new();
-    // use a value that cannot be reached otherwise, this makes for easier
-    // debugging
-    let mut num_changes = u32::MAX;
+impl Iterator for AllSolutionsIterator {
+    type Item = Sudoku;
+
+    fn next(&mut self) -> Option<Sudoku> {
+        
+        // TODO verify that sudoku_grid is borrowed and not copied here
+        let mut sudoku_grid = match self.solvable_sudoku_grid {
+            Some(sudoku_grid) => sudoku_grid,
+            None => { return None; },
+        };
+
+
+        let mut notes = NotesGrid::new();
+        // use a value that cannot be reached otherwise, this makes for easier
+        // debugging
+        let mut num_changes = u32::MAX;
+
+        let mut last_value = 0;
+        
+        while num_changes != 0 {
+            make_all_notes(&mut notes, &sudoku_grid);
+            num_changes = replace_notes_with_values(&mut sudoku_grid, &notes);
+        }
     
-    while num_changes != 0 {
-        make_all_notes(&mut notes, &sudoku_grid);
-        num_changes = replace_notes_with_values(&mut sudoku_grid, &notes);
-    }
+        let original_sudoku_grid = sudoku_grid;
 
-    if sudoku_grid.has_empty_squares() {
+        // TODO better label names
+
+        'outer: loop {
+            // The 'loop1 label is technically not required, but it is useful to have as a
+            // reference in comments.
+            'loop1: while num_changes != 0 {
+                make_all_notes(&mut notes, &sudoku_grid);
+                num_changes = replace_notes_with_values(&mut sudoku_grid, &notes);
+            }
+
+            'loop2: for x in 0..9 {
+                for y in 0..9 {
+                    // TODO not sure if the second part of this and expression is actually required
+                    if notes.get_note(x, y).num_values_possible == 0 && sudoku_grid.get_value(x, y) != 0 {
+                        // TODO improve expect message
+                        let last_value_change = self.changes_stack.pop().expect("This code should be unreachable");
+                        last_value = last_value_change.value;
+                        sudoku_grid = original_sudoku_grid;
+                        for value_change in self.changes_stack {
+                            sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
+                        }
+                        notes.reset();
+                        continue 'outer;
+                    }
+                }
+            }
+
+            if sudoku_grid.num_empty_squares() == 0 {
+                return Some(sudoku_grid);
+            }
+
+            for x in 0..9 {
+                for y in 0..9 {
+                    if notes.get_note(x, y).num_values_possible() > last_value {
+                        last_value = 0;
+                        let value = notes
+                            .get_note(x, y)
+                            .possible_values()
+                            .next()
+                            // 'loop2 ensures that there cannot be any square that cannot
+                            // possibly hold any value.
+                            //
+                            // 'loop1 ensures that there cannot be any square that could hold
+                            // exactly 1 value. If there is any, the square is filled with that
+                            // value.
+                            .expect("There should always be at least 2 possible values");
+                        self.changes_stack.push(ValueChange { x, y, value });
+                        sudoku_grid.set_value(x, y, value);
+                        continue 'outer;
+                    }
+                }
+            }
+        }
+
         None
-    } else {
-        Some(sudoku_grid)
     }
+}
+
+//TODO document
+struct ValueChange {
+    x: usize,
+    y: usize,
+    value: u32,
 }
 
 #[cfg(test)]
@@ -909,6 +1113,40 @@ mod tests {
         assert!(!unsolved_sudoku.fulfills_in_3x3_cell_condition());
 
         assert!(!unsolved_sudoku.is_solved());
+    }
+
+    #[test]
+    fn num_occurrences_of_and_num_empty_squares() {
+        let sudoku = Sudoku::new_from_array([2, 0, 0, 8, 7, 0, 0, 0, 0,
+                                             0, 0, 0, 1, 0, 0, 8, 0, 0,
+                                             0, 8, 0, 6, 0, 4, 0, 2, 1,
+                                             6, 0, 3, 0, 0, 0, 0, 0, 7,
+                                             0, 4, 1, 0, 6, 0, 5, 9, 0,
+                                             9, 0, 0, 0, 0, 0, 4, 0, 2,
+                                             5, 7, 0, 4, 0, 6, 0, 1, 0,
+                                             0, 0, 6, 0, 0, 3, 0, 0, 0,
+                                             0, 0, 0, 0, 1, 8, 0, 0, 6]);
+
+        assert_eq!(sudoku.num_occurrences_of(0), 50);
+        assert_eq!(sudoku.num_occurrences_of(1),  5);
+        assert_eq!(sudoku.num_occurrences_of(2),  3);
+        assert_eq!(sudoku.num_occurrences_of(3),  2);
+        assert_eq!(sudoku.num_occurrences_of(4),  4);
+        assert_eq!(sudoku.num_occurrences_of(5),  2);
+        assert_eq!(sudoku.num_occurrences_of(6),  6);
+        assert_eq!(sudoku.num_occurrences_of(7),  3);
+        assert_eq!(sudoku.num_occurrences_of(8),  4);
+        assert_eq!(sudoku.num_occurrences_of(9),  2);
+
+        assert_eq!(sudoku.num_empty_squares(), 50);
+    }
+
+    #[test]
+    #[should_panic]
+    fn num_occurrences_of_panics_on_invalid_value() {
+        let sudoku = Sudoku::new_empty();
+
+        sudoku.num_occurrences_of(10);
     }
 
     // SudokuNote methods
@@ -1202,7 +1440,24 @@ mod tests {
     }
 
     #[test]
-    fn find_all_solutions() {
-        unimplemented!();
+    fn find_all_solutions_exactly_2_solutions() {
+        // taken from https://puzzling.stackexchange.com/questions/67789/examples-of-sudokus-with-two-solutions
+        let two_possible_solutions_puzzle = Sudoku::new_from_array([2, 9, 5, 7, 4, 3, 8, 6, 1,
+                                                                    4, 3, 1, 8, 6, 5, 9, 0, 0,
+                                                                    8, 7, 6, 1, 9, 2, 5, 4, 3,
+                                                                    3, 8, 7, 4, 5, 9, 2, 1, 6,
+                                                                    6, 1, 2, 3, 8, 7, 4, 9, 5,
+                                                                    5, 4, 9, 2, 1, 6, 7, 3, 8,
+                                                                    7, 6, 3, 5, 2, 4, 1, 8, 9,
+                                                                    9, 2, 8, 6, 7, 1, 3, 5, 4,
+                                                                    1, 5, 4, 9, 3, 8, 6, 0, 0]);
+        
+        let solutions: Vec<Sudoku> = crate::find_all_solutions(two_possible_solutions_puzzle).collect();
+        
+        assert_eq!(solutions.len(), 2);
+        
+        for solution in solutions {
+            assert!(solution.is_solved());
+        }
     }
 }
