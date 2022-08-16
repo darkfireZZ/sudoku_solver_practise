@@ -32,7 +32,7 @@ fn validate_value(value: u32) {
 /// This implementation guarantees that values cannot be bigger than 9 and
 /// panics if supplied with any. It also panics if invalid coordinates are
 /// supplied.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Sudoku {
     grid: [u32; 81],
 }
@@ -608,13 +608,48 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
     num_new_values
 }
 
-pub fn try_solve_sudoku(sudoku_grid: &mut Sudoku) {
+/// Find the solution for the given [Sudoku] grid.
+///
+/// If there exists exactly 1 possible solution, this function will return the
+/// solution. Else, `None` will be returned.
+///
+/// ```
+/// use sudoku::Sudoku;
+///
+/// // Values generated with http://opensky.ca/sudoku
+/// let puzzle = Sudoku::new_from_array([7, 0, 6, 0, 0, 0, 0, 0, 0,
+///                                      0, 2, 0, 0, 0, 9, 6, 1, 0,
+///                                      0, 0, 0, 6, 5, 0, 0, 0, 3,
+///                                      9, 0, 0, 4, 3, 5, 2, 0, 0,
+///                                      8, 0, 0, 0, 9, 0, 0, 0, 5,
+///                                      0, 0, 3, 1, 2, 8, 0, 0, 4,
+///                                      4, 0, 0, 0, 8, 2, 0, 0, 0,
+///                                      0, 6, 8, 3, 0, 0, 0, 4, 0,
+///                                      0, 0, 0, 0, 0, 0, 5, 0, 1]);
+///
+/// let solution = sudoku::find_solution(puzzle);
+///
+/// if let Some(solved_sudoku) = solution {
+///     assert!(solved_sudoku.is_solved());
+/// } else {
+///     panic!("If the Sudoku puzzle above is solvable, this code is unreachable");
+/// }
+/// ```
+pub fn find_solution(mut sudoku_grid: Sudoku) -> Option<Sudoku> {
     let mut notes = NotesGrid::new();
+    // use a value that cannot be reached otherwise, this makes for easier
+    // debugging
     let mut num_changes = u32::MAX;
     
     while num_changes != 0 {
         make_all_notes(&mut notes, &sudoku_grid);
-        num_changes = replace_notes_with_values(sudoku_grid, &notes);
+        num_changes = replace_notes_with_values(&mut sudoku_grid, &notes);
+    }
+
+    if sudoku_grid.has_empty_squares() {
+        None
+    } else {
+        Some(sudoku_grid)
     }
 }
 
@@ -1045,12 +1080,90 @@ mod tests {
     }
     
     #[test]
-    fn solve_extremly_simple_sudoku() {
+    fn find_solution_extremely_simple_sudoku() {
         let expected_solution = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU_SOLUTION);
 
-        let mut found_solution = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
-        crate::try_solve_sudoku(&mut found_solution);
+        let puzzle = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
+        let found_solution = crate::find_solution(puzzle);
 
-        assert_eq!(found_solution, expected_solution);
+        assert_eq!(found_solution, Some(expected_solution));
+    }
+
+    #[test]
+    fn find_solution_extremely_difficult_sudoku() {
+        let extremely_difficult_sudoku = Sudoku::new_from_array([9, 4, 0, 0, 5, 0, 8, 0, 0,
+                                                                 0, 0, 0, 0, 3, 4, 0, 0, 9,
+                                                                 0, 0, 0, 0, 0, 0, 0, 2, 5,
+                                                                 1, 5, 9, 0, 7, 0, 0, 4, 0,
+                                                                 0, 0, 0, 5, 0, 6, 0, 0, 0,
+                                                                 0, 6, 0, 0, 4, 0, 5, 9, 7,
+                                                                 6, 2, 0, 0, 0, 0, 0, 0, 0,
+                                                                 3, 0, 0, 7, 2, 0, 0, 0, 0,
+                                                                 0, 0, 4, 0, 8, 0, 0, 3, 2]);
+
+        let expected_solution = Sudoku::new_from_array([9, 4, 6, 2, 5, 7, 8, 1, 3,
+                                                        2, 8, 5, 1, 3, 4, 6, 7, 9,
+                                                        7, 3, 1, 9, 6, 8, 4, 2, 5,
+                                                        1, 5, 9, 8, 7, 2, 3, 4, 6,
+                                                        4, 7, 3, 5, 9, 6, 2, 8, 1,
+                                                        8, 6, 2, 3, 4, 1, 5, 9, 7,
+                                                        6, 2, 7, 4, 1, 3, 9, 5, 8,
+                                                        3, 9, 8, 7, 2, 5, 1, 6, 4,
+                                                        5, 1, 4, 6, 8, 9, 7, 3, 2]);
+
+        let found_solution = crate::find_solution(extremely_difficult_sudoku);
+
+        assert_eq!(found_solution, Some(expected_solution));
+    }
+
+    #[test]
+    fn find_solution_unsolvable_sudoku() {
+        let unsolvable_sudoku = Sudoku::new_from_array([1, 2, 0, 4, 5, 6, 7, 8, 9,
+                                                        0, 0, 3, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                        0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        let solution = crate::find_solution(unsolvable_sudoku);
+
+        assert_eq!(solution, None);
+    }
+
+    #[test]
+    fn find_solution_invalid_sudoku() {
+        let invalid_sudoku = Sudoku::new_from_array([0, 0, 0, 4, 4, 0, 0, 0, 9,
+                                                     0, 8, 5, 0, 0, 3, 0, 0, 0,
+                                                     4, 0, 9, 6, 0, 0, 0, 3, 7,
+                                                     3, 0, 0, 5, 0, 4, 0, 0, 0,
+                                                     5, 0, 4, 0, 1, 0, 6, 0, 3,
+                                                     0, 0, 0, 3, 0, 7, 0, 0, 5,
+                                                     8, 1, 0, 0, 0, 9, 7, 0, 6,
+                                                     0, 0, 0, 2, 0, 0, 1, 9, 0,
+                                                     9, 0, 0, 0, 5, 0, 0, 0, 0]);
+
+        let solution = crate::find_solution(invalid_sudoku);
+
+        assert_eq!(solution, None);
+    }
+
+    #[test]
+    fn find_solution_multiple_solutions_sudoku() {
+        let puzzle = Sudoku::new_from_array([1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        let solution = crate::find_solution(puzzle);
+
+        assert_eq!(solution, None);
     }
 }
