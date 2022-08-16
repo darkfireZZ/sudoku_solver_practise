@@ -613,6 +613,9 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
 /// If there exists exactly 1 possible solution, this function will return the
 /// solution. Else, `None` will be returned.
 ///
+/// If the given [Sudoku] is invalid (meaning it contains the same value twice
+/// in the same row, column or 3x3 cell), None will be returned.
+///
 /// ```
 /// use sudoku::Sudoku;
 ///
@@ -636,6 +639,14 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
 /// }
 /// ```
 pub fn find_solution(mut sudoku_grid: Sudoku) -> Option<Sudoku> {
+
+    // if the given grid is not a valid Sudoku return None
+    if !sudoku_grid.fulfills_horizontal_condition()
+         || !sudoku_grid.fulfills_vertical_condition()
+         || !sudoku_grid.fulfills_in_3x3_cell_condition() {
+        return None;
+    }
+
     let mut notes = NotesGrid::new();
     // use a value that cannot be reached otherwise, this makes for easier
     // debugging
@@ -1150,6 +1161,29 @@ mod tests {
         assert_eq!(solution, None);
     }
 
+    /// This used to be a bug. The solver would try to solve invalid Sudoku
+    /// puzzles too. `find_solution_invalid_sudoku()` was not enough to find
+    /// that bug.
+    #[test]
+    fn find_solution_invalid_sudoku_2() {
+        // Original values generated with http://www.opensky.ca/sudoku
+        //
+        // Note the two 9's at coordinates (0 / 0) and (1 / 0)
+        let invalid_sudoku = Sudoku::new_from_array([9, 9, 2, 7, 5, 3, 6, 8, 4,
+                                                     7, 6, 5, 8, 9, 4, 1, 3, 2,
+                                                     3, 8, 4, 1, 2, 6, 9, 5, 7,
+                                                     2, 5, 8, 4, 7, 1, 3, 6, 9,
+                                                     4, 1, 7, 6, 3, 9, 5, 2, 8,
+                                                     9, 3, 6, 5, 8, 2, 4, 7, 1,
+                                                     8, 4, 9, 2, 6, 5, 7, 1, 3,
+                                                     6, 7, 1, 3, 4, 8, 2, 9, 5,
+                                                     5, 2, 3, 9, 1, 7, 8, 4, 6]);
+
+        let solution = crate::find_solution(invalid_sudoku);
+
+        assert_eq!(solution, None);
+    }
+
     #[test]
     fn find_solution_multiple_solutions_sudoku() {
         let puzzle = Sudoku::new_from_array([1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -1165,5 +1199,10 @@ mod tests {
         let solution = crate::find_solution(puzzle);
 
         assert_eq!(solution, None);
+    }
+
+    #[test]
+    fn find_all_solutions() {
+        unimplemented!();
     }
 }
