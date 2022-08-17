@@ -1,10 +1,15 @@
 
 #![warn(missing_docs)]
 
+use std::fmt;
 use std::time::{Duration, Instant};
 
-//TODO document crate
+use itertools::Itertools;
 
+// TODO document crate
+
+// TODO remove derive Debug?
+// TODO remove copy? when should it be implemented
 
 /// The number of squares on a Sudoku grid.
 pub const NUM_SQUARES: usize = 9 * 9;
@@ -111,7 +116,7 @@ impl Sudoku {
     ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0,
     ///                                        0, 0, 0, 0, 0, 0, 0, 0, 0]);
     ///
-    /// assert_eq!(sudoku0, sudoku1);
+    /// assert_eq!(sudoku_0, sudoku_1);
     /// ```
     pub fn new_empty() -> Sudoku {
         Sudoku {
@@ -459,6 +464,29 @@ impl Sudoku {
         }
 
         true
+    }
+}
+
+// TODO implement test for this
+// TODO test this
+
+impl fmt::Display for Sudoku {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // I think the following could be optimized some more (a lot of
+        // `String`s are created), but don't feel like figuring out how to
+        // optimize it further
+        let display_str: String = self.grid
+            .iter()
+            .chunks(9)
+            .into_iter()
+            .map(|row| row
+                 .map(|value| value.to_string())
+                 .intersperse(" ".to_owned())
+                 .collect::<String>())
+            .intersperse("\n".to_owned())
+            .collect();
+
+        write!(f, "\n{}\n", display_str)
     }
 }
 
@@ -814,6 +842,8 @@ struct AllSolutionsIterator {
     solvable_sudoku_grid: Option<Sudoku>,
     changes_stack: Vec<ValueChange>,
     timeout: Option<Duration>,
+    // TODO remove
+    counter: u32,
 }
 
 impl AllSolutionsIterator {
@@ -839,6 +869,7 @@ impl AllSolutionsIterator {
             solvable_sudoku_grid,
             changes_stack: Vec::with_capacity(num_empty_squares),
             timeout,
+            counter: 0,
         }
     }
 }
@@ -857,7 +888,14 @@ impl Iterator for AllSolutionsIterator {
 
         let mut notes = NotesGrid::new();
 
-        let mut last_value = 0;
+        let mut last_value = match self.changes_stack.pop() {
+            Some(value_change) => value_change.value,
+            None => 0,
+        };
+
+        for value_change in &self.changes_stack {
+            sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
+        }
 
         let original_sudoku_grid = sudoku_grid;
 
@@ -865,13 +903,23 @@ impl Iterator for AllSolutionsIterator {
 
         let start_time = Instant::now();
 
+        println!("{}", sudoku_grid);
+
         'outer: loop {
 
+            /*
             if let Some(timeout_duration) = self.timeout {
                 if Instant::now() - start_time > timeout_duration {
                     return Some(Err("timed out"))
                 }
             }
+            */
+
+            //println!("{:?}", sudoku_grid);
+            //println!("{}", last_value);
+            //println!("{:?}", self.solvable_sudoku_grid);
+            println!("{:?}", self.changes_stack);
+
 
             advance_with_notes(&mut sudoku_grid, &mut notes);
 
@@ -892,36 +940,41 @@ impl Iterator for AllSolutionsIterator {
                 return Some(Ok(sudoku_grid));
             }
 
-            for x in 0..9 {
-                for y in 0..9 {
-                    if notes.get_note(x, y).num_values_possible() > last_value && sudoku_grid.get_value(x, y) == 0 {
-                        last_value = 0;
-                        let value = notes
-                            .get_note(x, y)
-                            .possible_values()
-                            .next()
-                            // TODO rewrite this
-                            //
-                            // 'loop2 ensures that there cannot be any square that cannot
-                            // possibly hold any value.
-                            //
-                            // 'loop1 ensures that there cannot be any square that could hold
-                            // exactly 1 value. If there is any, the square is filled with that
-                            // value.
-                            .expect("There should always be at least 2 possible values");
-                        self.changes_stack.push(ValueChange { x, y, value });
-                        sudoku_grid.set_value(x, y, value);
-                        continue 'outer;
+            for y in 0..9 {
+                for x in 0..9 {
+                    let next_value = notes
+                        .get_note(x, y)
+                        .possible_values()
+                        .filter(|possible_value| possible_value > &last_value)
+                        .next();
+                    if let Some(value) = next_value {
+                        if sudoku_grid.get_value(x, y) == 0 {
+                            last_value = 0;
+                            self.changes_stack.push(ValueChange { x, y, value });
+                            sudoku_grid.set_value(x, y, value);
+                            continue 'outer;
+                        }
                     }
                 }
             }
-            return None
-        }
 
+            if let Some(last_value_change) = self.changes_stack.pop() {
+                last_value = last_value_change.value;
+                sudoku_grid = original_sudoku_grid;
+                for value_change in &self.changes_stack {
+                    sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
+                }
+                notes.reset();
+                continue 'outer;
+            }
+
+            return None;
+        }
     }
 }
 
 //TODO document
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ValueChange {
     x: usize,
     y: usize,
