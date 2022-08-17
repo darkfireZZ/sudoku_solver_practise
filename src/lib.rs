@@ -922,8 +922,11 @@ impl Iterator for AllSolutionsIterator {
 
 
             advance_with_notes(&mut sudoku_grid, &mut notes);
+            
+            println!("{}", sudoku_grid);
+            println!("{}", sudoku_grid.is_valid());
 
-            if is_dead_end(&sudoku_grid, &notes) {
+            if (!sudoku_grid.is_valid()) || is_dead_end(&sudoku_grid, &notes) {
                 // If the following line ever panics it is because the Sudoku puzzle to be
                 // solved has not been checked whether it is a dead end.
                 let last_value_change = self.changes_stack.pop().expect("This code should be unreachable");
@@ -942,16 +945,15 @@ impl Iterator for AllSolutionsIterator {
 
             for y in 0..9 {
                 for x in 0..9 {
-                    let next_value = notes
-                        .get_note(x, y)
-                        .possible_values()
-                        .filter(|possible_value| possible_value > &last_value)
-                        .next();
-                    if let Some(value) = next_value {
-                        if sudoku_grid.get_value(x, y) == 0 {
+                    for possible_value in notes.get_note(x, y).possible_values() {
+                        if possible_value > last_value && sudoku_grid.get_value(x, y) == 0 {
                             last_value = 0;
-                            self.changes_stack.push(ValueChange { x, y, value });
-                            sudoku_grid.set_value(x, y, value);
+                            sudoku_grid.set_value(x, y, possible_value);
+                            if !sudoku_grid.is_valid() {
+                                sudoku_grid.set_value(x, y, 0);
+                                continue;
+                            }
+                            self.changes_stack.push(ValueChange { x, y, value: possible_value });
                             continue 'outer;
                         }
                     }
@@ -1528,6 +1530,9 @@ mod tests {
                                                         5, 1, 4, 6, 8, 9, 7, 3, 2]);
 
         let found_solution = crate::find_solution_with_timeout(extremely_difficult_sudoku, Duration::from_secs(3));
+
+        println!("{}", found_solution.unwrap().unwrap());
+        println!("{}", expected_solution);
 
         assert_eq!(found_solution, Some(Ok(expected_solution)));
     }
