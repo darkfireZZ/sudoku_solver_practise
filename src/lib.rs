@@ -1,9 +1,6 @@
 
 #![warn(missing_docs)]
 
-use std::fmt;
-use std::time::{Duration, Instant};
-
 use itertools::Itertools;
 
 // TODO document crate
@@ -465,17 +462,51 @@ impl Sudoku {
 
         true
     }
-}
 
-// TODO implement test for this
-// TODO test this
-
-impl fmt::Display for Sudoku {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // I think the following could be optimized some more (a lot of
-        // `String`s are created), but don't feel like figuring out how to
-        // optimize it further
-        let display_str: String = self.grid
+    /// Get a [String] representation of this [Sudoku] grid.
+    ///
+    /// Useful for debugging purposes.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// # // TODO check if this is solvable
+    /// // Values generated with http://www.opensky.ca/sudoku
+    /// let sudoku = Sudoku::new_from_array([5, 0, 0, 0, 9, 0, 3, 8, 0,
+    ///                                      0, 0, 0, 6, 0, 0, 0, 0, 4,
+    ///                                      9, 0, 3, 8, 0, 1, 0, 7, 0,
+    ///                                      2, 8, 0, 0, 5, 0, 0, 0, 0,
+    ///                                      0, 4, 0, 0, 0, 0, 0, 6, 0,
+    ///                                      0, 0, 0, 0, 7, 0, 0, 4, 8,
+    ///                                      0, 5, 0, 7, 0, 4, 8, 0, 9,
+    ///                                      7, 0, 0, 0, 0, 9, 0, 0, 0,
+    ///                                      0, 1, 9, 0, 8, 0, 0, 0, 6]);
+    ///
+    /// // sudoku.string_repr() will produce the following string:
+    /// let string_repr = "\
+    /// 5 0 0 0 9 0 3 8 0
+    /// 0 0 0 6 0 0 0 0 4
+    /// 9 0 3 8 0 1 0 7 0
+    /// 2 8 0 0 5 0 0 0 0
+    /// 0 4 0 0 0 0 0 6 0
+    /// 0 0 0 0 7 0 0 4 8
+    /// 0 5 0 7 0 4 8 0 9
+    /// 7 0 0 0 0 9 0 0 0
+    /// 0 1 9 0 8 0 0 0 6
+    /// ";
+    ///
+    /// assert_eq!(sudoku.string_repr(), string_repr);
+    /// ```
+    ///
+    /// This is not used for implementing the [Debug] or [std::fmt::Display]
+    /// traits, because, spanning 9 lines, the output is quite bulky, which is
+    /// not practical in every case.
+    // I think this function could be optimized some more (a lot of `String`s
+    // are created), but I don't feel like figuring out how to optimize it
+    // further.
+    #[allow(unstable_name_collisions)]
+    pub fn string_repr(&self) -> String {
+        let mut string_repr = self.grid
             .iter()
             .chunks(9)
             .into_iter()
@@ -484,9 +515,11 @@ impl fmt::Display for Sudoku {
                  .intersperse(" ".to_owned())
                  .collect::<String>())
             .intersperse("\n".to_owned())
-            .collect();
+            .collect::<String>();
 
-        write!(f, "\n{}\n", display_str)
+        string_repr.push_str("\n");
+
+        string_repr
     }
 }
 
@@ -783,14 +816,10 @@ fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
     false
 }
 
-//TODO update doc
-/// Find the solution for the given [Sudoku] grid.
+/// Find a solution for a [Sudoku] puzzle.
 ///
-/// If there exists exactly 1 possible solution, this function will return the
-/// solution. Else, `None` will be returned.
-///
-/// If the given [Sudoku] is invalid (meaning it contains the same value twice
-/// in the same row, column or 3x3 cell), None will be returned.
+/// If there exist one or more possible solutions for the given puzzle, this
+/// function will return one possible solution. Else, `None` will be returned.
 ///
 /// ```
 /// use sudoku::Sudoku;
@@ -814,40 +843,65 @@ fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
 ///     panic!("If the Sudoku puzzle above is solvable, this code is unreachable");
 /// }
 /// ```
-
-
-pub fn find_solution_with_timeout(sudoku_grid: Sudoku, timeout: Duration) -> Option<Result<Sudoku, &'static str>> {
-    find_solution_internal(sudoku_grid, Some(timeout))
-}
-
-// TODO document
+///
+/// If the given [Sudoku] is invalid (meaning it contains the same value twice
+/// in the same row, column or 3x3 cell), None will be returned.
+///
+/// This function does not make any guarantees about which solution it returns
+/// if multiple exist and the solution returned may change across different
+/// versions of this crate.
 pub fn find_solution(sudoku_grid: Sudoku) -> Option<Sudoku> {
-    match find_solution_internal(sudoku_grid, None) {
-        Some(solution) => Some(solution.expect("Since no timeout is set, there cannot be an error")),
-        None => None,
-    }
+    find_all_solutions(sudoku_grid).next()
 }
 
-fn find_solution_internal(sudoku_grid: Sudoku, timeout: Option<Duration>) -> Option<Result<Sudoku, &'static str>> {
-    find_all_solutions(sudoku_grid, timeout).next()
-}
-
-//TODO document
-pub fn find_all_solutions(sudoku_grid: Sudoku, timeout: Option<Duration>) -> impl Iterator<Item = Result<Sudoku, &'static str>> {
-    AllSolutionsIterator::new(sudoku_grid, timeout)
+/// Find all solutions for a [Sudoku] puzzle.
+///
+/// Return an [Iterator] of all the possible solutions for the [Sudoku].
+///
+/// ```
+/// use sudoku::Sudoku;
+///
+/// let sudoku = Sudoku::new_from_array([1, 2, 3, 4, 5, 6, 7, 8, 9,
+///                                      0, 0, 0, 3, 0, 0, 6, 0, 0,
+///                                      0, 0, 0, 2, 0, 0, 5, 0, 0,
+///                                      0, 0, 0, 1, 0, 0, 4, 0, 0,
+///                                      0, 0, 0, 9, 0, 0, 3, 0, 0,
+///                                      0, 0, 0, 8, 0, 0, 2, 0, 0,
+///                                      0, 0, 0, 7, 0, 0, 1, 0, 0,
+///                                      0, 0, 0, 6, 0, 0, 9, 0, 0,
+///                                      0, 0, 0, 5, 0, 0, 8, 0, 0]);
+///
+/// let mut all_solutions = sudoku::find_all_solutions(sudoku);
+///
+/// # // Make sure that there exist at least 2 solutions for `sudoku`
+/// #
+/// # let solution_0 = all_solutions.next().expect("There should exist a solution");
+/// # assert!(solution_0.is_solved());
+/// #
+/// # let solution_1 = all_solutions.next().expect("There should exist a second solution");
+/// # assert!(solution_1.is_solved());
+/// ```
+///
+/// This function does not make any guarantees about the order of the solutions
+/// generated and the order may vary across different versions of this crate.
+///
+/// Avoid using functions like [Iterator::count()] or [Iterator::collect()] on
+/// the return value of this function unless you are certain that the number of
+/// possible solutions is very limited. Otherwise you'll likely get stuck in an
+/// almost infinite loop.
+pub fn find_all_solutions(sudoku_grid: Sudoku) -> impl Iterator<Item = Sudoku> {
+    AllSolutionsIterator::new(sudoku_grid)
 }
 
 //TODO document
 struct AllSolutionsIterator {
     solvable_sudoku_grid: Option<Sudoku>,
     changes_stack: Vec<ValueChange>,
-    timeout: Option<Duration>,
-    // TODO remove
-    counter: u32,
 }
 
 impl AllSolutionsIterator {
-    fn new(mut sudoku_grid: Sudoku, timeout: Option<Duration>) -> AllSolutionsIterator {
+    // TODO document
+    fn new(mut sudoku_grid: Sudoku) -> AllSolutionsIterator {
 
         let solvable_sudoku_grid = if sudoku_grid.is_valid() {
             let mut notes = NotesGrid::new();
@@ -862,29 +916,45 @@ impl AllSolutionsIterator {
             None
         };
 
-        // TODO this might be 1 too much, have a look at this again after impl
+        // The maximum capacity needed for `changes_stack`.
+        //
+        // All positions with 3 or less empty squares left should be solvable
+        // without the stack (I think, I have no proof of this), which allows
+        // us to set the capacity to the number of empty squares - 3.
+        //
+        // The optimal value is probably quite a bit lower than this, but I
+        // don't feel like doing all the maths to figure it out right now and
+        // it wouldn't significantly improve the performance of the solver
+        // anyways.
         let num_empty_squares = sudoku_grid.num_empty_squares();
+        let stack_capacity = if num_empty_squares > 3 {
+            num_empty_squares - 3
+        } else {
+            0
+        };
 
         AllSolutionsIterator {
             solvable_sudoku_grid,
-            changes_stack: Vec::with_capacity(num_empty_squares),
-            timeout,
-            counter: 0,
+            changes_stack: Vec::with_capacity(stack_capacity),
         }
     }
 }
 
 // TODO check if I can reduce the number of Copies in the solver
+// TODO rework solver
 impl Iterator for AllSolutionsIterator {
-    type Item = Result<Sudoku, &'static str>;
+    type Item = Sudoku;
 
-    fn next(&mut self) -> Option<Result<Sudoku, &'static str>> {
+    fn next(&mut self) -> Option<Sudoku> {
         
-        // TODO verify that sudoku_grid is borrowed and not copied here
         let mut sudoku_grid = match self.solvable_sudoku_grid {
             Some(sudoku_grid) => sudoku_grid,
             None => { return None; },
         };
+
+        // Save a reference to the untouched sudoku grid. Used to restore the
+        // orginal grid.
+        let original_sudoku_grid = &self.solvable_sudoku_grid.expect("This code is unreachable");
 
         let mut notes = NotesGrid::new();
 
@@ -897,41 +967,16 @@ impl Iterator for AllSolutionsIterator {
             sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
         }
 
-        let original_sudoku_grid = sudoku_grid;
-
-        // TODO better label names
-
-        let start_time = Instant::now();
-
-        println!("{}", sudoku_grid);
-
         'outer: loop {
-
-            /*
-            if let Some(timeout_duration) = self.timeout {
-                if Instant::now() - start_time > timeout_duration {
-                    return Some(Err("timed out"))
-                }
-            }
-            */
-
-            //println!("{:?}", sudoku_grid);
-            //println!("{}", last_value);
-            //println!("{:?}", self.solvable_sudoku_grid);
-            println!("{:?}", self.changes_stack);
-
 
             advance_with_notes(&mut sudoku_grid, &mut notes);
             
-            println!("{}", sudoku_grid);
-            println!("{}", sudoku_grid.is_valid());
-
             if (!sudoku_grid.is_valid()) || is_dead_end(&sudoku_grid, &notes) {
                 // If the following line ever panics it is because the Sudoku puzzle to be
                 // solved has not been checked whether it is a dead end.
                 let last_value_change = self.changes_stack.pop().expect("This code should be unreachable");
                 last_value = last_value_change.value;
-                sudoku_grid = original_sudoku_grid;
+                sudoku_grid = *original_sudoku_grid;
                 for value_change in &self.changes_stack {
                     sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
                 }
@@ -940,7 +985,7 @@ impl Iterator for AllSolutionsIterator {
             }
 
             if sudoku_grid.num_empty_squares() == 0 {
-                return Some(Ok(sudoku_grid));
+                return Some(sudoku_grid);
             }
 
             for y in 0..9 {
@@ -949,10 +994,6 @@ impl Iterator for AllSolutionsIterator {
                         if possible_value > last_value && sudoku_grid.get_value(x, y) == 0 {
                             last_value = 0;
                             sudoku_grid.set_value(x, y, possible_value);
-                            if !sudoku_grid.is_valid() {
-                                sudoku_grid.set_value(x, y, 0);
-                                continue;
-                            }
                             self.changes_stack.push(ValueChange { x, y, value: possible_value });
                             continue 'outer;
                         }
@@ -962,7 +1003,7 @@ impl Iterator for AllSolutionsIterator {
 
             if let Some(last_value_change) = self.changes_stack.pop() {
                 last_value = last_value_change.value;
-                sudoku_grid = original_sudoku_grid;
+                sudoku_grid = *original_sudoku_grid;
                 for value_change in &self.changes_stack {
                     sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
                 }
@@ -991,8 +1032,6 @@ mod tests {
     use crate::NotesGrid;
 
     use crate::NUM_SQUARES;
-
-    use std::time::Duration;
 
     /// A very simple Sudoku puzzle.
     ///
@@ -1266,6 +1305,36 @@ mod tests {
         sudoku.num_occurrences_of(10);
     }
 
+    #[test]
+    fn string_repr() {
+        // Values generated with http://www.opensky.ca/sudoku
+        let sudoku_grid = Sudoku::new_from_array([6, 0, 8, 4, 0, 0, 2, 0, 0,
+                                                  5, 0, 0, 7, 0, 0, 0, 0, 0,
+                                                  9, 0, 0, 0, 8, 0, 7, 1, 0,
+                                                  0, 0, 4, 0, 0, 9, 0, 0, 0,
+                                                  7, 9, 0, 8, 0, 5, 0, 2, 1,
+                                                  0, 0, 0, 1, 0, 0, 4, 0, 0,
+                                                  0, 5, 9, 0, 3, 0, 0, 0, 8,
+                                                  0, 0, 0, 0, 0, 4, 0, 0, 2,
+                                                  0, 0, 7, 0, 0, 8, 3, 0, 6]);
+
+        let expected = "\
+6 0 8 4 0 0 2 0 0
+5 0 0 7 0 0 0 0 0
+9 0 0 0 8 0 7 1 0
+0 0 4 0 0 9 0 0 0
+7 9 0 8 0 5 0 2 1
+0 0 0 1 0 0 4 0 0
+0 5 9 0 3 0 0 0 8
+0 0 0 0 0 4 0 0 2
+0 0 7 0 0 8 3 0 6
+";
+
+        let actual = sudoku_grid.string_repr();
+
+        assert_eq!(actual, expected);
+    }
+
     // SudokuNote methods
 
     #[test]
@@ -1529,12 +1598,9 @@ mod tests {
                                                         3, 9, 8, 7, 2, 5, 1, 6, 4,
                                                         5, 1, 4, 6, 8, 9, 7, 3, 2]);
 
-        let found_solution = crate::find_solution_with_timeout(extremely_difficult_sudoku, Duration::from_secs(3));
+        let found_solution = crate::find_solution(extremely_difficult_sudoku);
 
-        println!("{}", found_solution.unwrap().unwrap());
-        println!("{}", expected_solution);
-
-        assert_eq!(found_solution, Some(Ok(expected_solution)));
+        assert_eq!(found_solution.unwrap(), expected_solution);
     }
 
     #[test]
@@ -1607,12 +1673,7 @@ mod tests {
                                                                     9, 2, 8, 6, 7, 1, 3, 5, 4,
                                                                     1, 5, 4, 9, 3, 8, 6, 0, 0]);
         
-        let results: Vec<Result<Sudoku, &'static str>> = crate::find_all_solutions(two_possible_solutions_puzzle, Some(Duration::from_secs(0))).collect();
-
-        let solutions: Vec<Sudoku> = results
-            .iter()
-            .map(|result| result.expect("Failed finding solutions"))
-            .collect();
+        let solutions = crate::find_all_solutions(two_possible_solutions_puzzle).collect::<Vec<_>>();
         
         assert_eq!(solutions.len(), 2);
         
