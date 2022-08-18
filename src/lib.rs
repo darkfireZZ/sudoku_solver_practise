@@ -689,28 +689,6 @@ impl SudokuNote {
         (self.notes_flags >> (value - 1)) & 1 != 0
     }
 
-    /// Set if a certain value can still possibly be placed in the square
-    /// corresponding to this [SudokuNote].
-    ///
-    /// Do not use values for `value` > 9. In that case, the behaviour of this
-    /// function is not defined and may produce all sorts of weird results.
-    fn make_note(&mut self, value: u32, is_possible: bool) {
-        let notes_flags_old = self.notes_flags;
-
-        // clear the bit flag
-        self.notes_flags &= !(1 << (value - 1));
-        // set the bit flag
-        self.notes_flags |= (is_possible as u32) << (value - 1);
-
-        // adapt num_values_possible
-        if notes_flags_old > self.notes_flags {
-            self.num_values_possible -= 1;
-        }
-        else if notes_flags_old < self.notes_flags {
-            self.num_values_possible += 1;
-        }
-    }
-
     /// Get how many values can still possibly be placed in the square
     /// corresponding to this [SudokuNote].
     fn num_values_possible(&self) -> u32 {
