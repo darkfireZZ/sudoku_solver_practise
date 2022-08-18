@@ -62,7 +62,9 @@ impl Sudoku {
     ///                                      0, 0, 0, 6, 3, 7, 0, 0, 0,
     ///                                      8, 0, 0, 0, 0, 5, 0, 3, 1,
     ///                                      0, 0, 5, 1, 0, 0, 0, 7, 6]);
-    /// # //TODO check if this sudoku is solvable
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     /// ```
     ///
     /// And here a mathematically more precise description:
@@ -136,7 +138,9 @@ impl Sudoku {
     ///                                      0, 2, 0, 0, 6, 0, 0, 0, 0,
     ///                                      0, 0, 9, 0, 0, 4, 3, 0, 0,
     ///                                      0, 4, 8, 7, 1, 0, 0, 0, 0]);
-    /// # //TODO check if this sudoku is solvable
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     ///
     /// assert_eq!(sudoku.get_value(4, 0), 7);
     ///
@@ -259,13 +263,57 @@ impl Sudoku {
         AllSolutionsIterator::new(self)
     }
 
+    /// Return `true` if this [Sudoku] is solvable.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// // Values generated with http://www.opensky.ca/sudoku
+    /// let sudoku = Sudoku::new_from_array([0, 0, 1, 0, 2, 0, 9, 0, 0,
+    ///                                      9, 0, 0, 0, 4, 0, 0, 2, 0,
+    ///                                      0, 2, 0, 0, 9, 8, 0, 5, 1,
+    ///                                      0, 1, 7, 0, 0, 0, 0, 0, 0,
+    ///                                      4, 0, 0, 7, 0, 6, 0, 0, 9,
+    ///                                      0, 0, 0, 0, 0, 0, 6, 1, 0,
+    ///                                      1, 3, 0, 8, 7, 0, 0, 6, 0,
+    ///                                      0, 7, 0, 0, 5, 0, 0, 0, 4,
+    ///                                      0, 0, 5, 0, 6, 0, 3, 0, 0]);
+    ///
+    /// assert!(sudoku.is_solvable());
+    /// ```
+    ///
+    /// This is just syntactic sugar for [Sudoku::find_solution()] and then
+    /// checking whether the returned [Option] is `None`.
+    ///
+    /// ```
+    /// # use sudoku::Sudoku;
+    /// #
+    /// # // Values generated with http://www.opensky.ca/sudoku
+    /// # let sudoku = Sudoku::new_from_array([0, 0, 1, 0, 2, 0, 9, 0, 0,
+    /// #                                      9, 0, 0, 0, 4, 0, 0, 2, 0,
+    /// #                                      0, 2, 0, 0, 9, 8, 0, 5, 1,
+    /// #                                      0, 1, 7, 0, 0, 0, 0, 0, 0,
+    /// #                                      4, 0, 0, 7, 0, 6, 0, 0, 9,
+    /// #                                      0, 0, 0, 0, 0, 0, 6, 1, 0,
+    /// #                                      1, 3, 0, 8, 7, 0, 0, 6, 0,
+    /// #                                      0, 7, 0, 0, 5, 0, 0, 0, 4,
+    /// #                                      0, 0, 5, 0, 6, 0, 3, 0, 0]);
+    /// #
+    /// # assert!(sudoku.is_solvable());
+    /// #
+    /// let is_solvable = sudoku.find_solution().is_some(); // equivalent to sudoku.is_solvable()
+    /// ```
+    pub fn is_solvable(&self) -> bool {
+        self.find_solution().is_some()
+    }
+
     /// Check if this [Sudoku] is valid.
     ///
     /// A [Sudoku] is considered valid if it contains no duplicate values
     /// within any row, column or any of the 9 3x3 cells.
     ///
     /// IMPORTANT: Valid does not imply solvable, a [Sudoku] may well be valid
-    /// but unsolvable. To check for solvability see // TODO
+    /// but unsolvable. To check for solvability see [Sudoku::is_solvable()].
     ///
     /// Example of a valid [Sudoku]:
     /// ```
@@ -283,6 +331,9 @@ impl Sudoku {
     ///                                            0, 0, 0, 0, 0, 0, 0, 1, 0]);
     ///
     /// assert!(valid_sudoku.is_valid());
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(valid_sudoku.is_solvable());
     /// ```
     pub fn is_valid(&self) -> bool {
         self.fulfills_horizontal_condition() &&
@@ -295,7 +346,6 @@ impl Sudoku {
     /// ```
     /// use sudoku::Sudoku;
     ///
-    /// # // TODO check if this is solvable
     /// // Values generated with http://www.opensky.ca/sudoku
     /// let sudoku = Sudoku::new_from_array([0, 3, 0, 0, 0, 0, 0, 7, 0,
     ///                                      0, 0, 7, 9, 0, 0, 0, 4, 2,
@@ -308,6 +358,9 @@ impl Sudoku {
     ///                                      0, 4, 0, 0, 0, 0, 0, 3, 0]);
     ///
     /// assert!(sudoku.has_empty_squares());
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     /// ```
     ///
     /// ```
@@ -347,7 +400,6 @@ impl Sudoku {
     /// ```
     /// use sudoku::Sudoku;
     ///
-    /// # // TODO check if this is solvable
     /// // Values generated with http://www.opensky.ca/sudoku
     /// let sudoku = Sudoku::new_from_array([4, 3, 0, 0, 0, 9, 8, 0, 0,
     ///                                      1, 9, 0, 8, 0, 0, 0, 0, 5,
@@ -360,18 +412,20 @@ impl Sudoku {
     ///                                      0, 0, 5, 1, 0, 0, 0, 7, 6]);
     ///
     /// assert_eq!(sudoku.num_empty_squares(), 51);
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     /// ```
     pub fn num_empty_squares(&self) -> usize {
         self.num_occurrences_of(0)
     }
- 
+
     /// Get the number of squares on this [Sudoku] grid that contain a certain
     /// value.
     ///
     /// ```
     /// use sudoku::Sudoku;
     ///
-    /// # // TODO check if this is solvable
     /// // Values generated with http://www.opensky.ca/sudoku
     /// let sudoku = Sudoku::new_from_array([4, 3, 0, 0, 0, 9, 8, 0, 0,
     ///                                      1, 9, 0, 8, 0, 0, 0, 0, 5,
@@ -385,6 +439,9 @@ impl Sudoku {
     ///
     /// assert_eq!(sudoku.num_occurrences_of(3), 3);
     /// assert_eq!(sudoku.num_occurrences_of(7), 3);
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     /// ```
     pub fn num_occurrences_of(&self, value: u32) -> usize {
         validate_value(value);
@@ -543,7 +600,6 @@ impl Sudoku {
     /// ```
     /// use sudoku::Sudoku;
     ///
-    /// # // TODO check if this is solvable
     /// // Values generated with http://www.opensky.ca/sudoku
     /// let sudoku = Sudoku::new_from_array([5, 0, 0, 0, 9, 0, 3, 8, 0,
     ///                                      0, 0, 0, 6, 0, 0, 0, 0, 4,
@@ -569,6 +625,9 @@ impl Sudoku {
     /// ";
     ///
     /// assert_eq!(sudoku.string_repr(), string_repr);
+    /// #
+    /// # // I want all examples to be solvable
+    /// # assert!(sudoku.is_solvable());
     /// ```
     ///
     /// This is not used for implementing the [Debug] or [std::fmt::Display]
