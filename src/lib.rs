@@ -1546,55 +1546,10 @@ mod tests {
     }
 
     #[test]
-    fn make_note_is_value_possible_note() {
-        let mut notes = SudokuNote::new_with_all_values_possible();
-
-        notes.make_note(5, false);
-
-        assert!(!notes.is_value_possible(5))
-    }
-
-    #[test]
-    fn make_note_num_values_possible_changes() {
-        let mut notes = SudokuNote::new_with_all_values_possible();
-
-        notes.make_note(2, false);
-
-        assert_eq!(notes.num_values_possible(), 8);
-
-        notes.make_note(7, false);
-        assert_eq!(notes.num_values_possible(), 7);
-
-        notes.make_note(2, true);
-        assert_eq!(notes.num_values_possible(), 8);
-
-        notes.make_note(7, false);
-        notes.make_note(1, true);
-        assert_eq!(notes.num_values_possible(), 8);
-    }
-
-    #[test]
-    fn possible_values() {
-        let mut notes = SudokuNote::new_with_all_values_possible();
-        notes.make_note(4, false);
-        notes.make_note(9, false);
-        notes.make_note(2, false);
-
-        // the values as well as their order must be the same
-        let expected = vec![1, 3, 5, 6, 7, 8];
-        let actual: Vec<u32> = notes.possible_values().collect();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
     fn reset_to_all_values_possible() {
         let mut note = SudokuNote::new_with_all_values_possible();
 
-        // some random changes
-        note.make_note(2, false);
-        note.make_note(8, false);
-        note.make_note(9, false);
+        note.notes_flags = 0b111_001_100;
 
         note.reset_to_all_values_possible();
 
@@ -1620,14 +1575,14 @@ mod tests {
         let mut notes_grid = NotesGrid::new();
 
         // some random changes
-        notes_grid.get_note_mut(1, 5).make_note(8, false);
-        notes_grid.get_note_mut(1, 7).make_note(7, false);
-        notes_grid.get_note_mut(3, 1).make_note(3, false);
-        notes_grid.get_note_mut(4, 5).make_note(3, false);
-        notes_grid.get_note_mut(6, 2).make_note(5, false);
-        notes_grid.get_note_mut(7, 3).make_note(1, false);
-        notes_grid.get_note_mut(7, 4).make_note(2, false);
-        notes_grid.get_note_mut(7, 8).make_note(7, false);
+        notes_grid.get_note_mut(1, 5).notes_flags = 0b001_010_100;
+        notes_grid.get_note_mut(1, 7).notes_flags = 0b101_010_100;
+        notes_grid.get_note_mut(3, 1).notes_flags = 0b100_010_100;
+        notes_grid.get_note_mut(4, 5).notes_flags = 0b000_000_111;
+        notes_grid.get_note_mut(6, 2).notes_flags = 0b001_111_111;
+        notes_grid.get_note_mut(7, 3).notes_flags = 0b011_110_100;
+        notes_grid.get_note_mut(7, 4).notes_flags = 0b001_010_100;
+        notes_grid.get_note_mut(7, 8).notes_flags = 0b101_110_110;
 
         notes_grid.reset();
 
@@ -1742,9 +1697,7 @@ mod tests {
 
         // Set up "notes" so that the only possible value for square x=0/y=0 is
         // 1
-        for value in 2..=9 {
-            notes.get_note_mut(0, 0).make_note(value, false);
-        }
+        notes.get_note_mut(0, 0).notes_flags = 0b000_000_001;
 
         crate::replace_notes_with_values(&mut sudoku, &notes);
 
