@@ -1,9 +1,9 @@
 
+#![doc = include_str!("../README.md")]
+
 #![warn(missing_docs)]
 
 use itertools::Itertools;
-
-// TODO document crate
 
 /// The number of squares on a Sudoku grid.
 pub const NUM_SQUARES: usize = 9 * 9;
