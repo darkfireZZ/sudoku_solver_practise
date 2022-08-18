@@ -5,9 +5,6 @@ use itertools::Itertools;
 
 // TODO document crate
 
-// TODO remove derive Debug?
-// TODO remove copy? when should it be implemented
-
 /// The number of squares on a Sudoku grid.
 pub const NUM_SQUARES: usize = 9 * 9;
 
@@ -38,6 +35,8 @@ fn validate_value(value: u32) {
 /// This implementation guarantees that values cannot be bigger than 9 and
 /// panics if supplied with any. It also panics if invalid coordinates are
 /// supplied.
+// TODO the derived Debug implementation is very ugly, maybe manually implement
+// it
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Sudoku {
     grid: [u32; 81],
@@ -259,7 +258,7 @@ impl Sudoku {
     /// the return value of this function unless you are certain that the number of
     /// possible solutions is very limited. Otherwise you'll likely get stuck in an
     /// almost infinite loop.
-    pub fn find_all_solutions(&self) -> impl Iterator<Item = Sudoku> {
+    pub fn find_all_solutions(&self) -> impl Iterator<Item = Sudoku> + '_ {
         AllSolutionsIterator::new(self)
     }
 
@@ -918,7 +917,7 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
     num_new_values
 }
 
-// TODO document
+/// Fill in all squares of a [Sudoku] that can be using a [NotesGrid].
 fn advance_with_notes(sudoku_grid: &mut Sudoku, notes: &mut NotesGrid) {
     // use a value that cannot be reached otherwise, this makes for easier
     // debugging
@@ -948,32 +947,25 @@ fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
     false
 }
 
-//TODO document
-struct AllSolutionsIterator {
-    solvable_sudoku_grid: Option<Sudoku>,
+/// The [Iterator] returned by [Sudoku::find_all_solutions()] and the type that
+/// does the actual solving of [Sudoku]s.
+///
+/// `sudoku_grid` is a reference to the [Sudoku] puzzle to be solved by the solver.
+///
+/// `changes_stack` is a record of what changes needed to be made to the
+/// [Sudoku] to find the previous solution. This is required for the solver to
+/// know where to continue the search.
+struct AllSolutionsIterator<'a> {
+    sudoku_grid: &'a Sudoku,
     changes_stack: Vec<ValueChange>,
 }
 
-impl AllSolutionsIterator {
-    // TODO document
-    // TODO rework
+impl AllSolutionsIterator<'_> {
+
+    /// Initialize a new [AllSolutionsIterator].
+    ///
+    /// Takes care of initializing `changes_stack`.
     fn new(sudoku_grid: &Sudoku) -> AllSolutionsIterator {
-
-        let mut sudoku_grid = sudoku_grid.to_owned();
-
-        // TODO avoid this Copy
-        let solvable_sudoku_grid = if sudoku_grid.is_valid() {
-            let mut notes = NotesGrid::new();
-            advance_with_notes(&mut sudoku_grid, &mut notes);
-
-            if is_dead_end(&sudoku_grid, &notes) {
-                None
-            } else {
-                Some(sudoku_grid)
-            }
-        } else {
-            None
-        };
 
         // The maximum capacity needed for `changes_stack`.
         //
@@ -993,30 +985,44 @@ impl AllSolutionsIterator {
         };
 
         AllSolutionsIterator {
-            solvable_sudoku_grid,
+            sudoku_grid,
             changes_stack: Vec::with_capacity(stack_capacity),
         }
     }
+
+    // TODO document
+    fn revert_last_change(&mut self, sudoku_grid: &mut Sudoku, notes: &mut NotesGrid, last_value: &mut u32) -> Result<(), &'static str> {
+        let last_value_change = match self.changes_stack.pop() {
+            Some(value_change) => value_change,
+            None => return Err("stack empty"),
+        };
+        *last_value = last_value_change.value;
+        *sudoku_grid = *self.sudoku_grid;
+        for value_change in &self.changes_stack {
+            sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
+        }
+        notes.reset();
+
+        Ok(())
+    }
 }
 
-// TODO check if I can reduce the number of Copies in the solver
 // TODO rework solver
-impl Iterator for AllSolutionsIterator {
+impl Iterator for AllSolutionsIterator<'_> {
     type Item = Sudoku;
 
     fn next(&mut self) -> Option<Sudoku> {
-        
-        let mut sudoku_grid = match self.solvable_sudoku_grid {
-            Some(sudoku_grid) => sudoku_grid,
-            None => { return None; },
-        };
 
-        // Save a reference to the untouched sudoku grid. Used to restore the
-        // orginal grid.
-        let original_sudoku_grid = &self.solvable_sudoku_grid.expect("This code is unreachable");
-
+        let mut sudoku_grid = *self.sudoku_grid;
         let mut notes = NotesGrid::new();
 
+        // `last_value` ensures that the solver will not just find the same
+        // solution over and over again
+        //
+        // if this is the search for the first solution, set `last_value` to 0,
+        // else remove the last value on the stack (otherwise the exact same
+        // solution that was already found will be returned) and set last_value
+        // to that value
         let mut last_value = match self.changes_stack.pop() {
             Some(value_change) => value_change.value,
             None => 0,
@@ -1030,19 +1036,18 @@ impl Iterator for AllSolutionsIterator {
 
             advance_with_notes(&mut sudoku_grid, &mut notes);
             
+            // advance_with_notes() does not guarantee that the grid it
+            // produces is valid, so it has to be checked here
             if (!sudoku_grid.is_valid()) || is_dead_end(&sudoku_grid, &notes) {
-                // If the following line ever panics it is because the Sudoku puzzle to be
-                // solved has not been checked whether it is a dead end.
-                let last_value_change = self.changes_stack.pop().expect("This code should be unreachable");
-                last_value = last_value_change.value;
-                sudoku_grid = *original_sudoku_grid;
-                for value_change in &self.changes_stack {
-                    sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
-                }
-                notes.reset();
-                continue 'outer;
+                match self.revert_last_change(&mut sudoku_grid, &mut notes, &mut last_value) {
+                    Ok(_) => continue 'outer,
+                    // if the stack is empty
+                    Err(_) => return None,
+                };
             }
 
+            // if a Sudoku grid is valid and has no empty squares, that means
+            // it is solved
             if sudoku_grid.num_empty_squares() == 0 {
                 return Some(sudoku_grid);
             }
@@ -1060,17 +1065,11 @@ impl Iterator for AllSolutionsIterator {
                 }
             }
 
-            if let Some(last_value_change) = self.changes_stack.pop() {
-                last_value = last_value_change.value;
-                sudoku_grid = *original_sudoku_grid;
-                for value_change in &self.changes_stack {
-                    sudoku_grid.set_value(value_change.x, value_change.y, value_change.value);
-                }
-                notes.reset();
-                continue 'outer;
-            }
-
-            return None;
+            match self.revert_last_change(&mut sudoku_grid, &mut notes, &mut last_value) {
+                Ok(_) => continue 'outer,
+                // if the stack is empty
+                Err(_) => return None,
+            };
         }
     }
 }
