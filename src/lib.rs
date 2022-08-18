@@ -657,6 +657,8 @@ impl Sudoku {
 /// Remember all values that may still be possible for a specific square.
 ///
 /// See also [NotesGrid].
+// TODO the derived Debug trait implementation is very ugly and useless because
+// notes_flags is formatted to decimal
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct SudokuNote {
     notes_flags: u32,
@@ -978,6 +980,11 @@ fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
 /// `changes_stack` is a record of what changes needed to be made to the
 /// [Sudoku] to find the previous solution. This is required for the solver to
 /// know where to continue the search.
+///
+/// // TODO
+/// The solver would probably be faster if not changes, but the states of the
+/// grid was stored in the stack. The way it is now, the solver requires very
+/// little memory, but does quite some extra calculations because of that.
 struct AllSolutionsIterator<'a> {
     sudoku_grid: &'a Sudoku,
     changes_stack: Vec<ValueChange>,
@@ -1013,7 +1020,13 @@ impl AllSolutionsIterator<'_> {
         }
     }
 
-    // TODO document
+    /// Revert the last change made by the solver.
+    ///
+    /// Pop the last change off `changes_stack`, revert `sudoku_grid` and
+    /// `notes` to the state before the last change and set `last_value` to the
+    /// value of the last change.
+    ///
+    /// Return an Error if `changes_stack` is empty.
     fn revert_last_change(&mut self, sudoku_grid: &mut Sudoku, notes: &mut NotesGrid, last_value: &mut u32) -> Result<(), &'static str> {
         let last_value_change = match self.changes_stack.pop() {
             Some(value_change) => value_change,
@@ -1030,7 +1043,6 @@ impl AllSolutionsIterator<'_> {
     }
 }
 
-// TODO rework solver
 impl Iterator for AllSolutionsIterator<'_> {
     type Item = Sudoku;
 
@@ -1084,7 +1096,6 @@ impl Iterator for AllSolutionsIterator<'_> {
                         // documentation for sudoku::make_all_notes() for more
                         // information.
                         if possible_value > last_value && sudoku_grid.get_value(x, y) == 0 {
-                            // TODO test if this is required
                             last_value = 0;
                             sudoku_grid.set_value(x, y, possible_value);
                             self.changes_stack.push(ValueChange { x, y, value: possible_value });
@@ -1103,7 +1114,7 @@ impl Iterator for AllSolutionsIterator<'_> {
     }
 }
 
-//TODO document
+/// Stores one change of the solver.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ValueChange {
     x: usize,
