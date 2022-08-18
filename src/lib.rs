@@ -656,8 +656,6 @@ impl Sudoku {
 
 /// Remember all values that may still be possible for a specific square.
 ///
-/// This is used by the solver, for an explanation, see //TODO
-///
 /// See also [NotesGrid].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct SudokuNote {
@@ -831,62 +829,83 @@ impl NotesGrid {
 /// What happens with the notes for squares that already contain a value is not
 /// defined and may change in future versions.
 fn make_all_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
+    make_vertical_notes(notes, &sudoku);
+    make_horizontal_notes(notes, &sudoku);
+    make_in_cell_notes(notes, &sudoku);
+
+    for note in &mut notes.grid {
+        note.num_values_possible = 0;
+        for i in 0..9 {
+            note.num_values_possible += (note.notes_flags >> i) & 1
+        }
+    }
+}
+
+/// Make vertical notes for every square in a [Sudoku].
+///
+/// This functions leaves all [SudokuNote]s in the [NotesGrid] in an invalid
+/// state because the field `num_values_possible` is not updated.
+fn make_vertical_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
     for x in 0..9 {
+        let mut notes_mask = 0b111_111_111;
         for y in 0..9 {
-            if sudoku.get_value(x, y) == 0 {
-                let mut current_note = notes.get_note_mut(x, y);
-                make_vertical_notes(&mut current_note, x, &sudoku);
-                make_horizontal_notes(&mut current_note, y, &sudoku);
-                make_in_cell_notes(&mut current_note, x, y, &sudoku);
+            let value = sudoku.get_value(x, y);
+            if value == 0 {
+                continue;
             }
+            notes_mask ^= 1 << (value - 1);
+        }
+        for y in 0..9 {
+            notes.get_note_mut(x, y).notes_flags &= notes_mask;
         }
     }
 }
 
-/// Make the notes for a square based on its vertical line.
+/// Make horizontal notes for every square in a [Sudoku].
 ///
-/// See [make_all_notes()] for a more in-depth explanation.
-fn make_vertical_notes(note: &mut SudokuNote, x: usize, sudoku: &Sudoku) {
+/// This functions leaves all [SudokuNote]s in the [NotesGrid] in an invalid
+/// state because the field `num_values_possible` is not updated.
+fn make_horizontal_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
     for y in 0..9 {
-        let value_of_square = sudoku.get_value(x, y);
-        if value_of_square != 0 {
-            note.make_note(value_of_square, false);
+        let mut notes_mask = 0b111_111_111;
+        for x in 0..9 {
+            let value = sudoku.get_value(x, y);
+            if value == 0 {
+                continue;
+            }
+            notes_mask ^= 1 << (value - 1);
+        }
+        for x in 0..9 {
+            notes.get_note_mut(x, y).notes_flags &= notes_mask;
         }
     }
 }
 
-/// Make the notes for a square based on its horizontal line.
+/// Make notes in the 3x3 cell for every square in a [Sudoku].
 ///
-/// See [make_all_notes()] for a more in-depth explanation.
-fn make_horizontal_notes(note: &mut SudokuNote, y: usize, sudoku: &Sudoku) {
-    for x in 0..9 {
-        let value_of_square = sudoku.get_value(x, y);
-        if value_of_square != 0 {
-            note.make_note(value_of_square, false);
-        }
-    }
-}
-
-/// Make the notes for a square based on its surrounding 3x3 cell.
-///
-/// See [make_all_notes()] for a more in-depth explanation.
-fn make_in_cell_notes(note: &mut SudokuNote, x: usize, y: usize, sudoku: &Sudoku) {
-    // determine the upper left square of the 3x3 cell the x and y are located
-    // in
-    let min_x = x - (x % 3);
-    let min_y = y - (y % 3);
-
-    // and also determine the bottom right square
-    let max_x = min_x + 2;
-    let max_y = min_y + 2;
-
-    // iterate all the squares in the 3x3 cell, starting at the upper left
-    // square
-    for x in min_x..=max_x {
-        for y in min_y..=max_y {
-            let value_of_square = sudoku.get_value(x, y);
-            if value_of_square != 0 {
-                note.make_note(value_of_square, false);
+/// This functions leaves all [SudokuNote]s in the [NotesGrid] in an invalid
+/// state because the field `num_values_possible` is not updated.
+fn make_in_cell_notes(notes: &mut NotesGrid, sudoku: &Sudoku) {
+    for cell_y in 0..3 {
+        for cell_x in 0..3 {
+            let mut notes_mask = 0b111_111_111;
+            for square_y in 0..3 {
+                for square_x in 0..3 {
+                    let x = cell_x * 3 + square_x;
+                    let y = cell_y * 3 + square_y;
+                    let value = sudoku.get_value(x, y);
+                    if value == 0 {
+                        continue;
+                    }
+                    notes_mask ^= 1 << (value - 1);
+                }
+            }
+            for square_y in 0..3 {
+                for square_x in 0..3 {
+                    let x = cell_x * 3 + square_x;
+                    let y = cell_y * 3 + square_y;
+                    notes.get_note_mut(x, y).notes_flags &= notes_mask;
+                }
             }
         }
     }
@@ -902,6 +921,11 @@ fn replace_notes_with_values(sudoku: &mut Sudoku, notes: &NotesGrid) -> u32 {
     for x in 0..9 {
         for y in 0..9 {
             let current_note = notes.get_note(x, y);
+            // The second part of this expression is required
+            // because the notes of squares that already contain a
+            // value may still allow some possible values. See the
+            // documentation for sudoku::make_all_notes() for more
+            // information.
             if current_note.num_values_possible() == 1 && sudoku.get_value(x, y) == 0 {
                 let certain_value = current_note
                     .possible_values()
@@ -937,8 +961,7 @@ fn advance_with_notes(sudoku_grid: &mut Sudoku, notes: &mut NotesGrid) {
 fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
     for x in 0..9 {
         for y in 0..9 {
-            // TODO not sure if the second part of this and expression is actually required
-            if notes.get_note(x, y).num_values_possible == 0 && sudoku_grid.get_value(x, y) == 0 {
+            if notes.get_note(x, y).num_values_possible() == 0 && sudoku_grid.get_value(x, y) == 0 {
                 return true;
             }
         }
@@ -1055,7 +1078,13 @@ impl Iterator for AllSolutionsIterator<'_> {
             for y in 0..9 {
                 for x in 0..9 {
                     for possible_value in notes.get_note(x, y).possible_values() {
+                        // The second part of this expression is required
+                        // because the notes of squares that already contain a
+                        // value may still allow some possible values. See the
+                        // documentation for sudoku::make_all_notes() for more
+                        // information.
                         if possible_value > last_value && sudoku_grid.get_value(x, y) == 0 {
+                            // TODO test if this is required
                             last_value = 0;
                             sudoku_grid.set_value(x, y, possible_value);
                             self.changes_stack.push(ValueChange { x, y, value: possible_value });
@@ -1623,7 +1652,6 @@ mod tests {
     /// puzzle is solvable).
     #[test]
     fn make_all_notes_value_possible_if_square_not_filled() {
-
         let sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
         let mut notes = NotesGrid::new();
         crate::make_all_notes(&mut notes, &sudoku);
@@ -1652,38 +1680,53 @@ mod tests {
     #[test]
     fn make_vertical_notes() {
         let sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
-        let mut note = SudokuNote::new_with_all_values_possible();
+        let mut notes = NotesGrid::new();
 
-        crate::make_vertical_notes(&mut note, 2, &sudoku);
+        crate::make_vertical_notes(&mut notes, &sudoku);
 
         let expected = vec![3, 4, 5, 7];
-        let actual: Vec<u32> = note.possible_values().collect();
 
-        assert_eq!(expected, actual);
+        for y in 0..9 {
+            let actual: Vec<u32> = notes
+                .get_note(2, y)
+                .possible_values()
+                .collect();
+
+            assert_eq!(expected, actual);
+        }
     }
 
     #[test]
     fn make_horizontal_notes() {
         let sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
-        let mut note = SudokuNote::new_with_all_values_possible();
+        let mut notes = NotesGrid::new();
 
-        crate::make_horizontal_notes(&mut note, 6, &sudoku);
+        crate::make_horizontal_notes(&mut notes, &sudoku);
 
         let expected = vec![2, 3, 4, 7];
-        let actual: Vec<u32> = note.possible_values().collect();
 
-        assert_eq!(expected, actual);
+        for x in 0..9 {
+            let actual: Vec<u32> = notes
+                .get_note(x, 6)
+                .possible_values()
+                .collect();
+
+            assert_eq!(expected, actual);
+        }
     }
 
     #[test]
     fn make_in_cell_notes() {
         let sudoku = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
-        let mut note = SudokuNote::new_with_all_values_possible();
+        let mut notes = NotesGrid::new();
 
-        crate::make_in_cell_notes(&mut note, 2, 6, &sudoku);
+        crate::make_in_cell_notes(&mut notes, &sudoku);
 
         let expected = vec![2, 4, 7, 8];
-        let actual: Vec<u32> = note.possible_values().collect();
+        let actual: Vec<u32> = notes
+            .get_note(2, 6)
+            .possible_values()
+            .collect();
 
         assert_eq!(expected, actual);
     }
