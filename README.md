@@ -3,10 +3,9 @@
 This is a Sudoku solver. There is a bunch of other neat little features this
 library has, but its mostly just a solver.
 
-I've wanted to write a Sudoku solver for some time now and I was looking for a
-small project to get more comfortable with Rust. That's how this came about...
-This library is likely very far from optimal, both in terms of coding practises
-and the solver algorithm.
+I coded this to get more comfortable with Rust. Consequently, this library is
+likely very far from optimal, both in terms of coding practises and the solver
+algorithm.
 
 If you want to use this for any reason, go ahead.
 
@@ -31,7 +30,7 @@ importantly though, it was a fun challange.
 
 # Examples
 
-```
+```rust
 use sudoku::Sudoku;
 
 // Initialize a Sudoku
@@ -54,7 +53,7 @@ let solution = a_difficult_sudoku.find_solution()
 assert!(solution.is_solved());
 ```
 
-```
+```rust
 use sudoku::Sudoku;
 
 // Initialize a Sudoku
