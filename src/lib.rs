@@ -186,6 +186,79 @@ impl Sudoku {
         !self.has_empty_squares() && self.is_valid()
     }
 
+    /// Find a solution for this [Sudoku] puzzle.
+    ///
+    /// If there exist one or more possible solutions for this puzzle, this
+    /// function will return one of them. Else, `None` will be returned.
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// // Values generated with http://opensky.ca/sudoku
+    /// let puzzle = Sudoku::new_from_array([7, 0, 6, 0, 0, 0, 0, 0, 0,
+    ///                                      0, 2, 0, 0, 0, 9, 6, 1, 0,
+    ///                                      0, 0, 0, 6, 5, 0, 0, 0, 3,
+    ///                                      9, 0, 0, 4, 3, 5, 2, 0, 0,
+    ///                                      8, 0, 0, 0, 9, 0, 0, 0, 5,
+    ///                                      0, 0, 3, 1, 2, 8, 0, 0, 4,
+    ///                                      4, 0, 0, 0, 8, 2, 0, 0, 0,
+    ///                                      0, 6, 8, 3, 0, 0, 0, 4, 0,
+    ///                                      0, 0, 0, 0, 0, 0, 5, 0, 1]);
+    ///
+    /// let solution = puzzle.find_solution();
+    ///
+    /// assert!(solution.expect("There exists a solution").is_solved());
+    /// ```
+    ///
+    /// If the given [Sudoku] is invalid (meaning it contains the same value twice
+    /// in the same row, column or 3x3 cell), None will be returned.
+    ///
+    /// This function does not make any guarantees about which solution it returns
+    /// if multiple exist and the solution returned may change across different
+    /// versions of this crate.
+    pub fn find_solution(&self) -> Option<Sudoku> {
+        self.find_all_solutions().next()
+    }
+
+    /// Find all solutions for this [Sudoku] puzzle.
+    ///
+    /// Return an [Iterator] of all the possible solutions for the [Sudoku].
+    ///
+    /// ```
+    /// use sudoku::Sudoku;
+    ///
+    /// let sudoku = Sudoku::new_from_array([1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ///                                      0, 0, 0, 3, 0, 0, 6, 0, 0,
+    ///                                      0, 0, 0, 2, 0, 0, 5, 0, 0,
+    ///                                      0, 0, 0, 1, 0, 0, 4, 0, 0,
+    ///                                      0, 0, 0, 9, 0, 0, 3, 0, 0,
+    ///                                      0, 0, 0, 8, 0, 0, 2, 0, 0,
+    ///                                      0, 0, 0, 7, 0, 0, 1, 0, 0,
+    ///                                      0, 0, 0, 6, 0, 0, 9, 0, 0,
+    ///                                      0, 0, 0, 5, 0, 0, 8, 0, 0]);
+    ///
+    /// let mut all_solutions = sudoku.find_all_solutions();
+    ///
+    /// # // Make sure that there exist at least 2 solutions for `sudoku`
+    /// #
+    /// # let solution_0 = all_solutions.next().expect("There should exist a solution");
+    /// # assert!(solution_0.is_solved());
+    /// #
+    /// # let solution_1 = all_solutions.next().expect("There should exist a second solution");
+    /// # assert!(solution_1.is_solved());
+    /// ```
+    ///
+    /// This function does not make any guarantees about the order of the solutions
+    /// generated and the order may change across different versions of this crate.
+    ///
+    /// Avoid using functions like [Iterator::count()] or [Iterator::collect()] on
+    /// the return value of this function unless you are certain that the number of
+    /// possible solutions is very limited. Otherwise you'll likely get stuck in an
+    /// almost infinite loop.
+    pub fn find_all_solutions(&self) -> impl Iterator<Item = Sudoku> {
+        AllSolutionsIterator::new(self)
+    }
+
     /// Check if this [Sudoku] is valid.
     ///
     /// A [Sudoku] is considered valid if it contains no duplicate values
@@ -816,83 +889,6 @@ fn is_dead_end(sudoku_grid: &Sudoku, notes: &NotesGrid) -> bool {
     false
 }
 
-/// Find a solution for a [Sudoku] puzzle.
-///
-/// If there exist one or more possible solutions for the given puzzle, this
-/// function will return one possible solution. Else, `None` will be returned.
-///
-/// ```
-/// use sudoku::Sudoku;
-///
-/// // Values generated with http://opensky.ca/sudoku
-/// let puzzle = Sudoku::new_from_array([7, 0, 6, 0, 0, 0, 0, 0, 0,
-///                                      0, 2, 0, 0, 0, 9, 6, 1, 0,
-///                                      0, 0, 0, 6, 5, 0, 0, 0, 3,
-///                                      9, 0, 0, 4, 3, 5, 2, 0, 0,
-///                                      8, 0, 0, 0, 9, 0, 0, 0, 5,
-///                                      0, 0, 3, 1, 2, 8, 0, 0, 4,
-///                                      4, 0, 0, 0, 8, 2, 0, 0, 0,
-///                                      0, 6, 8, 3, 0, 0, 0, 4, 0,
-///                                      0, 0, 0, 0, 0, 0, 5, 0, 1]);
-///
-/// let solution = sudoku::find_solution(puzzle);
-///
-/// if let Some(solved_sudoku) = solution {
-///     assert!(solved_sudoku.is_solved());
-/// } else {
-///     panic!("If the Sudoku puzzle above is solvable, this code is unreachable");
-/// }
-/// ```
-///
-/// If the given [Sudoku] is invalid (meaning it contains the same value twice
-/// in the same row, column or 3x3 cell), None will be returned.
-///
-/// This function does not make any guarantees about which solution it returns
-/// if multiple exist and the solution returned may change across different
-/// versions of this crate.
-pub fn find_solution(sudoku_grid: Sudoku) -> Option<Sudoku> {
-    find_all_solutions(sudoku_grid).next()
-}
-
-/// Find all solutions for a [Sudoku] puzzle.
-///
-/// Return an [Iterator] of all the possible solutions for the [Sudoku].
-///
-/// ```
-/// use sudoku::Sudoku;
-///
-/// let sudoku = Sudoku::new_from_array([1, 2, 3, 4, 5, 6, 7, 8, 9,
-///                                      0, 0, 0, 3, 0, 0, 6, 0, 0,
-///                                      0, 0, 0, 2, 0, 0, 5, 0, 0,
-///                                      0, 0, 0, 1, 0, 0, 4, 0, 0,
-///                                      0, 0, 0, 9, 0, 0, 3, 0, 0,
-///                                      0, 0, 0, 8, 0, 0, 2, 0, 0,
-///                                      0, 0, 0, 7, 0, 0, 1, 0, 0,
-///                                      0, 0, 0, 6, 0, 0, 9, 0, 0,
-///                                      0, 0, 0, 5, 0, 0, 8, 0, 0]);
-///
-/// let mut all_solutions = sudoku::find_all_solutions(sudoku);
-///
-/// # // Make sure that there exist at least 2 solutions for `sudoku`
-/// #
-/// # let solution_0 = all_solutions.next().expect("There should exist a solution");
-/// # assert!(solution_0.is_solved());
-/// #
-/// # let solution_1 = all_solutions.next().expect("There should exist a second solution");
-/// # assert!(solution_1.is_solved());
-/// ```
-///
-/// This function does not make any guarantees about the order of the solutions
-/// generated and the order may vary across different versions of this crate.
-///
-/// Avoid using functions like [Iterator::count()] or [Iterator::collect()] on
-/// the return value of this function unless you are certain that the number of
-/// possible solutions is very limited. Otherwise you'll likely get stuck in an
-/// almost infinite loop.
-pub fn find_all_solutions(sudoku_grid: Sudoku) -> impl Iterator<Item = Sudoku> {
-    AllSolutionsIterator::new(sudoku_grid)
-}
-
 //TODO document
 struct AllSolutionsIterator {
     solvable_sudoku_grid: Option<Sudoku>,
@@ -901,8 +897,12 @@ struct AllSolutionsIterator {
 
 impl AllSolutionsIterator {
     // TODO document
-    fn new(mut sudoku_grid: Sudoku) -> AllSolutionsIterator {
+    // TODO rework
+    fn new(sudoku_grid: &Sudoku) -> AllSolutionsIterator {
 
+        let mut sudoku_grid = sudoku_grid.to_owned();
+
+        // TODO avoid this Copy
         let solvable_sudoku_grid = if sudoku_grid.is_valid() {
             let mut notes = NotesGrid::new();
             advance_with_notes(&mut sudoku_grid, &mut notes);
@@ -1270,6 +1270,122 @@ mod tests {
 
         assert!(!unsolved_sudoku.is_solved());
     }
+    
+    #[test]
+    fn find_solution_extremely_simple_sudoku() {
+        let expected_solution = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU_SOLUTION);
+
+        let puzzle = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
+        let found_solution = puzzle.find_solution();
+
+        assert_eq!(found_solution, Some(expected_solution));
+    }
+
+    #[test]
+    fn find_solution_extremely_difficult_sudoku() {
+        let extremely_difficult_sudoku = Sudoku::new_from_array([9, 4, 0, 0, 5, 0, 8, 0, 0,
+                                                                 0, 0, 0, 0, 3, 4, 0, 0, 9,
+                                                                 0, 0, 0, 0, 0, 0, 0, 2, 5,
+                                                                 1, 5, 9, 0, 7, 0, 0, 4, 0,
+                                                                 0, 0, 0, 5, 0, 6, 0, 0, 0,
+                                                                 0, 6, 0, 0, 4, 0, 5, 9, 7,
+                                                                 6, 2, 0, 0, 0, 0, 0, 0, 0,
+                                                                 3, 0, 0, 7, 2, 0, 0, 0, 0,
+                                                                 0, 0, 4, 0, 8, 0, 0, 3, 2]);
+
+        let expected_solution = Sudoku::new_from_array([9, 4, 6, 2, 5, 7, 8, 1, 3,
+                                                        2, 8, 5, 1, 3, 4, 6, 7, 9,
+                                                        7, 3, 1, 9, 6, 8, 4, 2, 5,
+                                                        1, 5, 9, 8, 7, 2, 3, 4, 6,
+                                                        4, 7, 3, 5, 9, 6, 2, 8, 1,
+                                                        8, 6, 2, 3, 4, 1, 5, 9, 7,
+                                                        6, 2, 7, 4, 1, 3, 9, 5, 8,
+                                                        3, 9, 8, 7, 2, 5, 1, 6, 4,
+                                                        5, 1, 4, 6, 8, 9, 7, 3, 2]);
+
+        let found_solution = extremely_difficult_sudoku.find_solution();
+
+        assert_eq!(found_solution.unwrap(), expected_solution);
+    }
+
+    #[test]
+    fn find_solution_dead_end() {
+        let dead_end = Sudoku::new_from_array([1, 2, 0, 4, 5, 6, 7, 8, 9,
+                                               0, 0, 3, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        let solution = dead_end.find_solution();
+
+        assert_eq!(solution, None);
+    }
+
+    #[test]
+    fn find_solution_invalid_sudoku() {
+        let invalid_sudoku = Sudoku::new_from_array([0, 0, 0, 4, 4, 0, 0, 0, 9,
+                                                     0, 8, 5, 0, 0, 3, 0, 0, 0,
+                                                     4, 0, 9, 6, 0, 0, 0, 3, 7,
+                                                     3, 0, 0, 5, 0, 4, 0, 0, 0,
+                                                     5, 0, 4, 0, 1, 0, 6, 0, 3,
+                                                     0, 0, 0, 3, 0, 7, 0, 0, 5,
+                                                     8, 1, 0, 0, 0, 9, 7, 0, 6,
+                                                     0, 0, 0, 2, 0, 0, 1, 9, 0,
+                                                     9, 0, 0, 0, 5, 0, 0, 0, 0]);
+
+        let solution = invalid_sudoku.find_solution();
+
+        assert_eq!(solution, None);
+    }
+
+    /// This used to be a bug. The solver would try to solve invalid Sudoku
+    /// puzzles too. `find_solution_invalid_sudoku()` was not enough to find
+    /// that bug.
+    #[test]
+    fn find_solution_invalid_sudoku_2() {
+        // Original values generated with http://www.opensky.ca/sudoku
+        //
+        // Note the two 9's at coordinates (0 / 0) and (1 / 0)
+        let invalid_sudoku = Sudoku::new_from_array([9, 9, 2, 7, 5, 3, 6, 8, 4,
+                                                     7, 6, 5, 8, 9, 4, 1, 3, 2,
+                                                     3, 8, 4, 1, 2, 6, 9, 5, 7,
+                                                     2, 5, 8, 4, 7, 1, 3, 6, 9,
+                                                     4, 1, 7, 6, 3, 9, 5, 2, 8,
+                                                     9, 3, 6, 5, 8, 2, 4, 7, 1,
+                                                     8, 4, 9, 2, 6, 5, 7, 1, 3,
+                                                     6, 7, 1, 3, 4, 8, 2, 9, 5,
+                                                     5, 2, 3, 9, 1, 7, 8, 4, 6]);
+
+        let solution = invalid_sudoku.find_solution();
+
+        assert_eq!(solution, None);
+    }
+
+    #[test]
+    fn find_all_solutions_exactly_2_solutions() {
+        // taken from https://puzzling.stackexchange.com/questions/67789/examples-of-sudokus-with-two-solutions
+        let two_possible_solutions_puzzle = Sudoku::new_from_array([2, 9, 5, 7, 4, 3, 8, 6, 1,
+                                                                    4, 3, 1, 8, 6, 5, 9, 0, 0,
+                                                                    8, 7, 6, 1, 9, 2, 5, 4, 3,
+                                                                    3, 8, 7, 4, 5, 9, 2, 1, 6,
+                                                                    6, 1, 2, 3, 8, 7, 4, 9, 5,
+                                                                    5, 4, 9, 2, 1, 6, 7, 3, 8,
+                                                                    7, 6, 3, 5, 2, 4, 1, 8, 9,
+                                                                    9, 2, 8, 6, 7, 1, 3, 5, 4,
+                                                                    1, 5, 4, 9, 3, 8, 6, 0, 0]);
+        
+        let solutions = two_possible_solutions_puzzle.find_all_solutions().collect::<Vec<_>>();
+        
+        assert_eq!(solutions.len(), 2);
+        
+        for solution in solutions {
+            assert!(solution.is_solved());
+        }
+    }
 
     #[test]
     fn num_occurrences_of_and_num_empty_squares() {
@@ -1564,121 +1680,5 @@ mod tests {
         crate::make_all_notes(&mut notes, &dead_end);
        
         assert!(crate::is_dead_end(&dead_end, &notes));
-    }
-    
-    #[test]
-    fn find_solution_extremely_simple_sudoku() {
-        let expected_solution = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU_SOLUTION);
-
-        let puzzle = Sudoku::new_from_array(EXTREMELY_SIMPLE_SUDOKU);
-        let found_solution = crate::find_solution(puzzle);
-
-        assert_eq!(found_solution, Some(expected_solution));
-    }
-
-    #[test]
-    fn find_solution_extremely_difficult_sudoku() {
-        let extremely_difficult_sudoku = Sudoku::new_from_array([9, 4, 0, 0, 5, 0, 8, 0, 0,
-                                                                 0, 0, 0, 0, 3, 4, 0, 0, 9,
-                                                                 0, 0, 0, 0, 0, 0, 0, 2, 5,
-                                                                 1, 5, 9, 0, 7, 0, 0, 4, 0,
-                                                                 0, 0, 0, 5, 0, 6, 0, 0, 0,
-                                                                 0, 6, 0, 0, 4, 0, 5, 9, 7,
-                                                                 6, 2, 0, 0, 0, 0, 0, 0, 0,
-                                                                 3, 0, 0, 7, 2, 0, 0, 0, 0,
-                                                                 0, 0, 4, 0, 8, 0, 0, 3, 2]);
-
-        let expected_solution = Sudoku::new_from_array([9, 4, 6, 2, 5, 7, 8, 1, 3,
-                                                        2, 8, 5, 1, 3, 4, 6, 7, 9,
-                                                        7, 3, 1, 9, 6, 8, 4, 2, 5,
-                                                        1, 5, 9, 8, 7, 2, 3, 4, 6,
-                                                        4, 7, 3, 5, 9, 6, 2, 8, 1,
-                                                        8, 6, 2, 3, 4, 1, 5, 9, 7,
-                                                        6, 2, 7, 4, 1, 3, 9, 5, 8,
-                                                        3, 9, 8, 7, 2, 5, 1, 6, 4,
-                                                        5, 1, 4, 6, 8, 9, 7, 3, 2]);
-
-        let found_solution = crate::find_solution(extremely_difficult_sudoku);
-
-        assert_eq!(found_solution.unwrap(), expected_solution);
-    }
-
-    #[test]
-    fn find_solution_dead_end() {
-        let dead_end = Sudoku::new_from_array([1, 2, 0, 4, 5, 6, 7, 8, 9,
-                                               0, 0, 3, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                               0, 0, 0, 0, 0, 0, 0, 0, 0]);
-
-        let solution = crate::find_solution(dead_end);
-
-        assert_eq!(solution, None);
-    }
-
-    #[test]
-    fn find_solution_invalid_sudoku() {
-        let invalid_sudoku = Sudoku::new_from_array([0, 0, 0, 4, 4, 0, 0, 0, 9,
-                                                     0, 8, 5, 0, 0, 3, 0, 0, 0,
-                                                     4, 0, 9, 6, 0, 0, 0, 3, 7,
-                                                     3, 0, 0, 5, 0, 4, 0, 0, 0,
-                                                     5, 0, 4, 0, 1, 0, 6, 0, 3,
-                                                     0, 0, 0, 3, 0, 7, 0, 0, 5,
-                                                     8, 1, 0, 0, 0, 9, 7, 0, 6,
-                                                     0, 0, 0, 2, 0, 0, 1, 9, 0,
-                                                     9, 0, 0, 0, 5, 0, 0, 0, 0]);
-
-        let solution = crate::find_solution(invalid_sudoku);
-
-        assert_eq!(solution, None);
-    }
-
-    /// This used to be a bug. The solver would try to solve invalid Sudoku
-    /// puzzles too. `find_solution_invalid_sudoku()` was not enough to find
-    /// that bug.
-    #[test]
-    fn find_solution_invalid_sudoku_2() {
-        // Original values generated with http://www.opensky.ca/sudoku
-        //
-        // Note the two 9's at coordinates (0 / 0) and (1 / 0)
-        let invalid_sudoku = Sudoku::new_from_array([9, 9, 2, 7, 5, 3, 6, 8, 4,
-                                                     7, 6, 5, 8, 9, 4, 1, 3, 2,
-                                                     3, 8, 4, 1, 2, 6, 9, 5, 7,
-                                                     2, 5, 8, 4, 7, 1, 3, 6, 9,
-                                                     4, 1, 7, 6, 3, 9, 5, 2, 8,
-                                                     9, 3, 6, 5, 8, 2, 4, 7, 1,
-                                                     8, 4, 9, 2, 6, 5, 7, 1, 3,
-                                                     6, 7, 1, 3, 4, 8, 2, 9, 5,
-                                                     5, 2, 3, 9, 1, 7, 8, 4, 6]);
-
-        let solution = crate::find_solution(invalid_sudoku);
-
-        assert_eq!(solution, None);
-    }
-
-    #[test]
-    fn find_all_solutions_exactly_2_solutions() {
-        // taken from https://puzzling.stackexchange.com/questions/67789/examples-of-sudokus-with-two-solutions
-        let two_possible_solutions_puzzle = Sudoku::new_from_array([2, 9, 5, 7, 4, 3, 8, 6, 1,
-                                                                    4, 3, 1, 8, 6, 5, 9, 0, 0,
-                                                                    8, 7, 6, 1, 9, 2, 5, 4, 3,
-                                                                    3, 8, 7, 4, 5, 9, 2, 1, 6,
-                                                                    6, 1, 2, 3, 8, 7, 4, 9, 5,
-                                                                    5, 4, 9, 2, 1, 6, 7, 3, 8,
-                                                                    7, 6, 3, 5, 2, 4, 1, 8, 9,
-                                                                    9, 2, 8, 6, 7, 1, 3, 5, 4,
-                                                                    1, 5, 4, 9, 3, 8, 6, 0, 0]);
-        
-        let solutions = crate::find_all_solutions(two_possible_solutions_puzzle).collect::<Vec<_>>();
-        
-        assert_eq!(solutions.len(), 2);
-        
-        for solution in solutions {
-            assert!(solution.is_solved());
-        }
     }
 }
