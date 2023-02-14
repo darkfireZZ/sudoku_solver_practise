@@ -1,32 +1,9 @@
-# What Is This?
+# A Simple Sudoku Solver
 
-This is a Sudoku solver. There is a bunch of other neat little features this
-library has, but its mostly just a solver.
+I coded this to get more comfortable with Rust. The code is probably not very clean or
+efficient (I didn't know a lot about Rust or Sudoku solving when I coded this).
 
-I coded this to get more comfortable with Rust. Consequently, this library is
-likely very far from optimal, both in terms of coding practises and the solver
-algorithm.
-
-If you want to use this for any reason, go ahead.
-
-# How Does The Solver Work?
-
-Note: My knowledge of Sudoku solving is very limited. I know the rules, but
-that's it. I have no idea of the mathematical concepts and the algorithms in
-the Sudoku world and also didn't feel like reading up on any. I expect my
-algorithm to be anything but optimal and my terminology to be quite off.
-
-The algorithm used for the solver is a simple backtracking algorithm with one
-small addition: The solver recognizes squares that can only possibly contain a
-single value based on the already filled-in squares in the row, column and
-surrounding 3x3 cell of the square and fill them in. This should significantly
-speed up the solver (I haven't actually tested this though).
-
-I've chosen an iterative implementation for the solver. This makes it possible
-to have a function that returns an [Iterator] of solutions
-([Sudoku::find_all_solutions()]), which could be useful in cases where
-multiple solutions exist and one wants to find a bunch of them. More
-importantly though, it was a fun challange.
+The solver is implemented as a simple backtracking algorithm with some minor optimizations.
 
 # Examples
 
@@ -53,6 +30,7 @@ let solution = a_difficult_sudoku.find_solution()
 assert!(solution.is_solved());
 ```
 
+If multiple solutions exist, an iterator over all possible solutions can be obtained:
 ```rust
 use sudoku::Sudoku;
 
